@@ -1,1 +1,24 @@
+# Claude Code
 CLAUDE.md
+
+# Go
+backend/bin/
+backend/*.exe
+backend/*.out
+backend/vendor/
+
+# Environment files
+**/.env
+**/.env.local
+**/.env.production
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.vercel/
+frontend/npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
