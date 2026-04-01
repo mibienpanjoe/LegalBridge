@@ -92,11 +92,13 @@ func (s *PostgresStore) WriteChunks(ctx context.Context, documentID string, chun
 
 // SimilaritySearch returns the topK chunks nearest to vector by cosine
 // distance, ordered nearest-first. All queries are parameterized.
+// DocumentFilename is populated via JOIN with the documents table.
 func (s *PostgresStore) SimilaritySearch(ctx context.Context, vector []float32, topK int) ([]Chunk, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, document_id, content, embedding, chunk_index, created_at
-		 FROM chunks
-		 ORDER BY embedding <=> $1
+		`SELECT c.id, c.document_id, d.filename, c.content, c.embedding, c.chunk_index, c.created_at
+		 FROM chunks c
+		 JOIN documents d ON d.id = c.document_id
+		 ORDER BY c.embedding <=> $1
 		 LIMIT $2`,
 		pgvector.NewVector(vector),
 		topK,
@@ -110,7 +112,7 @@ func (s *PostgresStore) SimilaritySearch(ctx context.Context, vector []float32, 
 	for rows.Next() {
 		var c Chunk
 		var vec pgvector.Vector
-		if err := rows.Scan(&c.ID, &c.DocumentID, &c.Content, &vec, &c.ChunkIndex, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.DocumentID, &c.DocumentFilename, &c.Content, &vec, &c.ChunkIndex, &c.CreatedAt); err != nil {
 			return nil, &DatabaseUnavailableError{Cause: err}
 		}
 		c.Embedding = vec.Slice()

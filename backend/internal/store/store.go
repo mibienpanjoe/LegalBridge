@@ -8,12 +8,13 @@ import (
 // Chunk is a text segment from an ingested document together with its
 // pre-computed bge-m3 embedding vector.
 type Chunk struct {
-	ID         string
-	DocumentID string
-	Content    string
-	Embedding  []float32
-	ChunkIndex int
-	CreatedAt  time.Time
+	ID               string
+	DocumentID       string
+	DocumentFilename string // populated by SimilaritySearch via JOIN with documents
+	Content          string
+	Embedding        []float32
+	ChunkIndex       int
+	CreatedAt        time.Time
 }
 
 // Store owns all PostgreSQL read and write operations.
