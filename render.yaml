@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: legalbridge-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: legalbridge-db
+          property: connectionString
+      - key: EMBEDDING_PROVIDER
+        value: huggingface
+      - key: LLM_PROVIDER
+        value: groq
+      - key: HF_API_KEY
+        sync: false          # set manually in Render dashboard
+      - key: GROQ_API_KEY
+        sync: false          # set manually in Render dashboard
+      - key: CORS_ALLOWED_ORIGIN
+        sync: false          # set to your Vercel URL after frontend deploy
+    # Run migrations before each deploy
+    preDeployCommand: /migrate
+
+databases:
+  - name: legalbridge-db
+    plan: free
+    databaseName: legalbridge
+    user: postgres
