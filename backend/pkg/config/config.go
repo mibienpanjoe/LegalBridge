@@ -29,6 +29,10 @@ type Config struct {
 
 	// Groq — used when LLMProvider is "groq".
 	GroqAPIKey string
+
+	// CORSAllowedOrigin is an additional origin to allow in production
+	// (set to the Vercel frontend URL). localhost:3000 is always allowed.
+	CORSAllowedOrigin string
 }
 
 // Load reads all configuration from environment variables. It returns a Config
@@ -43,6 +47,7 @@ func Load() *Config {
 		OllamaModel:       getEnvOrDefault("OLLAMA_MODEL", "llama3.2"),
 		HFAPIKey:          os.Getenv("HF_API_KEY"),
 		GroqAPIKey:        os.Getenv("GROQ_API_KEY"),
+		CORSAllowedOrigin: os.Getenv("CORS_ALLOWED_ORIGIN"),
 	}
 }
 

@@ -37,7 +37,7 @@ func main() {
 
 	// Build the Gin router.
 	r := gin.New()
-	r.Use(api.LoggingMiddleware(), api.CORSMiddleware(), gin.Recovery())
+	r.Use(api.LoggingMiddleware(), api.CORSMiddleware(cfg.CORSAllowedOrigin), gin.Recovery())
 
 	handler := api.NewAPIHandler(ing, qp, pg)
 	handler.RegisterRoutes(r)
