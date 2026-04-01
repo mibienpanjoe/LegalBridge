@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import Disclaimer from "@/components/Disclaimer";
 import DocumentUpload, { type UploadStatus } from "@/components/DocumentUpload";
 import QueryInput from "@/components/QueryInput";
-import AnswerDisplay, { type AnswerStatus } from "@/components/AnswerDisplay";
-import { ingestDocument, queryDocument, type QueryResponse } from "@/lib/api";
+import AnswerThread from "@/components/AnswerThread";
+import { ingestDocument, queryDocument, type Citation } from "@/lib/api";
 
 // ─── State types ──────────────────────────────────────────────────────────────
 
@@ -17,16 +17,22 @@ type UploadState =
 
 type QueryState =
   | { status: "idle" }
-  | { status: "searching" }
-  | { status: "success"; result: QueryResponse }
+  | { status: "searching"; question: string }
   | { status: "error"; message: string };
 
-// ─── Suggested questions for the demo ─────────────────────────────────────────
+export type HistoryEntry = {
+  question: string;
+  answer: string;
+  citations: Citation[];
+  noResults: boolean;
+};
+
+// ─── Suggested questions (generic legal, bilingual) ───────────────────────────
 
 const SUGGESTED_QUESTIONS = [
-  "What are the requirements to register a company?",
-  "How long does registration take?",
-  "What documents are needed for registration?",
+  "Quels sont les droits et obligations des parties ?",
+  "Quelles sont les conditions requises ?",
+  "Quelles sont les sanctions prévues ?",
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -34,11 +40,14 @@ const SUGGESTED_QUESTIONS = [
 export default function Home() {
   const [uploadState, setUploadState] = useState<UploadState>({ status: "idle" });
   const [queryState, setQueryState] = useState<QueryState>({ status: "idle" });
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [question, setQuestion] = useState("");
+  const answerRef = useRef<HTMLDivElement>(null);
 
   const handleUpload = useCallback(async (file: File) => {
     setUploadState({ status: "uploading" });
     setQueryState({ status: "idle" });
+    setHistory([]);
     try {
       const res = await ingestDocument(file);
       setUploadState({
@@ -58,10 +67,29 @@ export default function Home() {
   const handleQuery = useCallback(async () => {
     const q = question.trim();
     if (!q) return;
-    setQueryState({ status: "searching" });
+
+    // Fix 4: clear input immediately after submit
+    setQuestion("");
+    setQueryState({ status: "searching", question: q });
+
+    // Fix 6: scroll to the answer area
+    setTimeout(() => {
+      answerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 80);
+
     try {
       const res = await queryDocument(q);
-      setQueryState({ status: "success", result: res });
+      // Fix 3: push to history instead of replacing
+      setHistory((prev) => [
+        ...prev,
+        {
+          question: q,
+          answer: res.answer,
+          citations: res.citations,
+          noResults: res.no_results,
+        },
+      ]);
+      setQueryState({ status: "idle" });
     } catch (err) {
       setQueryState({
         status: "error",
@@ -71,13 +99,17 @@ export default function Home() {
   }, [question]);
 
   const uploadStatus: UploadStatus =
-    uploadState.status === "idle" || uploadState.status === "uploading" || uploadState.status === "error"
+    uploadState.status === "idle" ||
+    uploadState.status === "uploading" ||
+    uploadState.status === "error"
       ? uploadState.status
       : "success";
 
   const showQuery = uploadState.status === "success";
-  const showAnswer =
-    queryState.status === "searching" || queryState.status === "success";
+  const showThread =
+    history.length > 0 ||
+    queryState.status === "searching" ||
+    queryState.status === "error";
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -95,7 +127,7 @@ export default function Home() {
 
       {/* ── Main content ───────────────────────────────────────────────────── */}
       <main className="mx-auto w-full max-w-4xl flex-1 space-y-6 px-4 py-8 md:px-12">
-        {/* BR-01: always visible */}
+        {/* Fix 7: dismissible disclaimer */}
         <Disclaimer />
 
         {/* Upload zone */}
@@ -135,26 +167,17 @@ export default function Home() {
           />
         )}
 
-        {/* Answer display */}
-        {showAnswer && (
-          <AnswerDisplay
-            status={queryState.status as AnswerStatus}
-            answer={
-              queryState.status === "success"
-                ? queryState.result.answer
-                : undefined
-            }
-            citations={
-              queryState.status === "success"
-                ? queryState.result.citations
-                : undefined
-            }
-            noResults={
-              queryState.status === "success"
-                ? queryState.result.no_results
-                : undefined
-            }
-          />
+        {/* Fix 3: conversation thread */}
+        {showThread && (
+          <div ref={answerRef}>
+            <AnswerThread
+              history={history}
+              isSearching={queryState.status === "searching"}
+              searchingQuestion={
+                queryState.status === "searching" ? queryState.question : undefined
+              }
+            />
+          </div>
         )}
       </main>
 
