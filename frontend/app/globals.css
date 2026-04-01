@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains);
+  --font-heading: var(--font-playfair);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -126,5 +126,32 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ─── LegalBridge brand tokens ─────────────────────────────────────── */
+:root {
+  --lb-primary:        #1B3A5C;
+  --lb-primary-hover:  #162F4A;
+  --lb-amber:          #C9873A;
+  --lb-amber-hover:    #B0732E;
+  --lb-parchment:      #F7F8FA;
+  --lb-surface:        #FFFFFF;
+  --lb-border:         #D1D5DB;
+  --lb-success:        #16A34A;
+  --lb-success-bg:     #F0FDF4;
+  --lb-warning:        #D97706;
+  --lb-warning-bg:     #FFFBEB;
+  --lb-error:          #DC2626;
+  --lb-error-bg:       #FEF2F2;
+  --lb-text-primary:   #111827;
+  --lb-text-secondary: #4B5563;
+  --lb-text-muted:     #9CA3AF;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }
