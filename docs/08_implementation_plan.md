@@ -42,7 +42,7 @@ This document breaks the LegalBridge build into discrete, sequenced phases. Each
    - `github.com/gin-gonic/gin`
    - `github.com/jackc/pgx/v5`
    - `github.com/pgvector/pgvector-go`
-   - `github.com/pdfcpu/pdfcpu`
+   - `github.com/ledongthuc/pdf`
    - `github.com/google/uuid`
 4. Bootstrap Next.js frontend: `npx create-next-app@latest frontend --typescript --tailwind --app`
 5. Install frontend deps: `shadcn/ui`, Tailwind config
@@ -151,7 +151,7 @@ test(store): add WriteChunks dimension validation unit tests
 ### Tasks
 
 1. **`internal/ingester/pdf.go`** — PDF text extraction:
-   - Use `pdfcpu` to extract raw text from `[]byte`
+   - Use `ledongthuc/pdf` to extract plain text from `[]byte` — handles standard Latin, CID/Unicode, and hex-encoded fonts reliably
    - Return `ExtractionFailedError` if result is empty string (FR-052)
    - Do NOT transform the extracted text (INV-05)
 

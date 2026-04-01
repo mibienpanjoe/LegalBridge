@@ -27,7 +27,7 @@ At MVP scale — one document, a few hundred chunks — pgvector running inside 
 **Outputs:** `IngestResult{DocumentID, ChunkCount}` or error
 
 **Key behaviors:**
-1. Extract full text from PDF using `pdfcpu` (Go library — no external process)
+1. Extract full text from PDF using `ledongthuc/pdf` (Go library — no external process)
 2. Split text into ~500-token chunks with 50-token overlap using a word-boundary tokenizer
 3. For each chunk, call `EmbeddingClient.Embed(chunk.Content, config.EmbeddingModel)`
 4. Batch-write all chunks with their embeddings to `Store.WriteChunks()`
@@ -202,7 +202,7 @@ POST /api/ingest (multipart/form-data, field: "file")
 APIHandler.handleIngest()
     ↓
 Ingester.Ingest(fileBytes, filename)
-    ├─► pdfcpu.ExtractText(fileBytes)          → rawText
+    ├─► pdf.ExtractText(fileBytes)             → rawText
     │       └─► empty result → ExtractionFailedError
     ├─► tokenize(rawText, chunkSize=500, overlap=50) → []chunkText
     ├─► for each chunkText:
@@ -251,7 +251,7 @@ HTTP 200 { "answer": "...", "citations": [...], "query": "..." }
 |------------|-----------|-----------|
 | Go 1.22+ | All backend components | Performance, concurrency, single binary deployment |
 | Gin framework | APIHandler | Minimal HTTP router, well-documented middleware |
-| pdfcpu | Ingester | Pure Go PDF text extraction, no system dependency |
+| ledongthuc/pdf | Ingester | Pure Go PDF text extraction, handles standard + complex encodings, no system dependency |
 | HuggingFace Inference API (HTTP) | Ingester, QueryProcessor | `BAAI/bge-m3` embeddings (production) |
 | Ollama HTTP client | Ingester, QueryProcessor | `bge-m3` embeddings + `llama3.3` (local dev) |
 | Groq SDK / HTTP | QueryProcessor | `llama-3.3-70b-versatile` for RAG synthesis (production) |
@@ -325,7 +325,7 @@ legalbridge/
 │   │   │   └── middleware.go     # CORS, logging
 │   │   ├── ingester/
 │   │   │   ├── ingester.go       # Ingest() entry point
-│   │   │   ├── pdf.go            # pdfcpu text extraction (INV-05)
+│   │   │   ├── pdf.go            # ledongthuc/pdf text extraction (INV-05)
 │   │   │   └── chunker.go        # 500-token chunking with overlap
 │   │   ├── query/
 │   │   │   ├── processor.go      # Query() entry point
