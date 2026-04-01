@@ -22,7 +22,8 @@ func NewEmbeddingClient(cfg *config.Config) EmbeddingClient {
 	httpClient := &http.Client{Timeout: 30 * time.Second}
 	switch cfg.EmbeddingProvider {
 	case "huggingface":
-		return &HuggingFaceClient{apiKey: cfg.HFAPIKey, http: httpClient}
+		hfClient := &http.Client{Timeout: 120 * time.Second}
+		return &HuggingFaceClient{apiKey: cfg.HFAPIKey, http: hfClient}
 	default: // "ollama" or unset
 		return &OllamaClient{baseURL: cfg.OllamaBaseURL, http: httpClient}
 	}

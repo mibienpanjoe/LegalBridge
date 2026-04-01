@@ -20,7 +20,7 @@ type hfEmbedRequest struct {
 }
 
 func (c *HuggingFaceClient) Embed(ctx context.Context, text, model string) ([]float32, error) {
-	url := fmt.Sprintf("https://api-inference.huggingface.co/pipeline/feature-extraction/%s", model)
+	url := fmt.Sprintf("https://router.huggingface.co/hf-inference/models/%s/pipeline/feature-extraction", model)
 
 	body, err := json.Marshal(hfEmbedRequest{Inputs: text})
 	if err != nil {
@@ -47,13 +47,13 @@ func (c *HuggingFaceClient) Embed(ctx context.Context, text, model string) ([]fl
 		}
 	}
 
-	// HF feature-extraction returns [][]float32 for a single string input (shape 1×dim).
-	var out [][]float32
+	// HF router returns a flat []float32 (shape: dim) for a single string input.
+	var out []float32
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return nil, &EmbeddingUnavailableError{Reason: err.Error()}
 	}
-	if len(out) == 0 || len(out[0]) == 0 {
+	if len(out) == 0 {
 		return nil, &EmbeddingUnavailableError{Reason: "empty embedding response"}
 	}
-	return out[0], nil
+	return out, nil
 }
