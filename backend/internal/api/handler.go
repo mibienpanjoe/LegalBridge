@@ -83,10 +83,24 @@ func (h *APIHandler) RegisterRoutes(r *gin.Engine) {
 
 // ─── handleIngest ─────────────────────────────────────────────────────────────
 
+// maxIngestBytes is the hard limit on uploaded PDF size (20 MB).
+const maxIngestBytes = 20 * 1024 * 1024
+
 // handleIngest accepts multipart/form-data with a "file" field.
 func (h *APIHandler) handleIngest(c *gin.Context) {
+	// Cap the request body before multipart parsing to enforce the 20 MB limit.
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxIngestBytes)
+
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			c.JSON(http.StatusRequestEntityTooLarge, errorEnvelope{Error: apiError{
+				Code:    "FILE_TOO_LARGE",
+				Message: "file exceeds the 20 MB limit",
+			}})
+			return
+		}
 		c.JSON(http.StatusBadRequest, errorEnvelope{Error: apiError{
 			Code:    "INVALID_REQUEST",
 			Message: "multipart field 'file' is required",
@@ -97,6 +111,14 @@ func (h *APIHandler) handleIngest(c *gin.Context) {
 
 	data, err := io.ReadAll(file)
 	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			c.JSON(http.StatusRequestEntityTooLarge, errorEnvelope{Error: apiError{
+				Code:    "FILE_TOO_LARGE",
+				Message: "file exceeds the 20 MB limit",
+			}})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, errorEnvelope{Error: apiError{
 			Code:    "READ_ERROR",
 			Message: "failed to read uploaded file",
