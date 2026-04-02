@@ -7,10 +7,11 @@ backend/*.exe
 backend/*.out
 backend/vendor/
 
-# Environment files
+# Environment files — ignore real env files, not .env.example templates
 **/.env
 **/.env.local
 **/.env.production
+!**/.env.example
 
 # Node / Next.js
 frontend/node_modules/
