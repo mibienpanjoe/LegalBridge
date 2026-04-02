@@ -318,6 +318,55 @@ The `docs/` folder contains a complete engineering specification suite:
 
 ---
 
+## Deployment
+
+### Backend — Railway (recommended)
+
+1. Push this repo to GitHub.
+2. Create a new project on [Railway](https://railway.app), connect the repo, and add a **PostgreSQL** plugin.
+3. Railway auto-detects `railway.json` and uses the `backend/Dockerfile`. It will run `/migrate` as a release command before each deploy.
+4. Set these environment variables in the Railway dashboard:
+
+| Variable | Value |
+|----------|-------|
+| `DATABASE_URL` | Set automatically by Railway's PostgreSQL plugin |
+| `EMBEDDING_PROVIDER` | `huggingface` |
+| `HF_API_KEY` | Your HuggingFace token |
+| `LLM_PROVIDER` | `groq` |
+| `GROQ_API_KEY` | Your Groq API key |
+| `CORS_ALLOWED_ORIGIN` | Your Vercel frontend URL (set after frontend deploy) |
+
+5. Confirm the backend is live: `curl https://your-backend.up.railway.app/api/health`
+
+### Backend — Render (alternative)
+
+`render.yaml` is included at the repo root. Connect the repo in [Render](https://render.com) and it will provision a free PostgreSQL database and web service automatically. Set `HF_API_KEY`, `GROQ_API_KEY`, and `CORS_ALLOWED_ORIGIN` manually in the Render dashboard.
+
+### Frontend — Vercel
+
+1. Import the repo on [Vercel](https://vercel.com), set the **Root Directory** to `frontend`.
+2. Add one environment variable:
+
+| Variable | Value |
+|----------|-------|
+| `NEXT_PUBLIC_API_URL` | Your Railway/Render backend URL |
+
+3. Deploy. Copy the Vercel URL and paste it into `CORS_ALLOWED_ORIGIN` in your Railway/Render dashboard, then redeploy the backend.
+
+### Production environment variables reference
+
+| Variable | Required | Where |
+|----------|----------|-------|
+| `DATABASE_URL` | Yes | Backend |
+| `EMBEDDING_PROVIDER` | Yes (`huggingface`) | Backend |
+| `HF_API_KEY` | Yes | Backend |
+| `LLM_PROVIDER` | Yes (`groq`) | Backend |
+| `GROQ_API_KEY` | Yes | Backend |
+| `CORS_ALLOWED_ORIGIN` | Yes | Backend |
+| `NEXT_PUBLIC_API_URL` | Yes | Frontend |
+
+---
+
 ## Contributing
 
 Contributions are welcome. Please open an issue before submitting a large pull request.
