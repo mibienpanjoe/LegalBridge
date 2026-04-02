@@ -6,8 +6,6 @@ services:
     dockerContext: ./backend
     plan: free
     healthCheckPath: /api/health
-    # Runs /migrate (schema creation) before each deploy goes live.
-    preDeployCommand: /migrate
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -28,4 +26,3 @@ databases:
   - name: legalbridge-db
     plan: free
     databaseName: legalbridge
-    user: postgres
