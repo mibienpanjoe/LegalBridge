@@ -1,5 +1,11 @@
 # LegalBridge
 
+<p align="center">
+  <img src="docs/assets/screenshot-landing.png" width="48%" alt="LegalBridge landing page — upload zone with legal disclaimer" />
+  &nbsp;&nbsp;
+  <img src="docs/assets/screenshot-query.png" width="48%" alt="LegalBridge query view — document loaded with French suggested questions" />
+</p>
+
 **Multilingual legal document assistant for West African businesses.**
 
 LegalBridge lets you upload a legal PDF and ask questions in plain English or French. It retrieves the most relevant passages from the document and synthesizes a precise, cited answer — so every claim is traceable back to the source text.
