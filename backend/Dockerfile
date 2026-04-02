@@ -17,6 +17,7 @@ RUN addgroup -S app && adduser -S app -G app
 COPY --from=builder /bin/server   /server
 COPY --from=builder /bin/migrate  /migrate
 COPY entrypoint.sh                /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 USER app
 EXPOSE 8080
