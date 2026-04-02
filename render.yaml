@@ -5,6 +5,9 @@ services:
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     plan: free
+    healthCheckPath: /api/health
+    # Runs /migrate (schema creation) before each deploy goes live.
+    preDeployCommand: /migrate
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -19,9 +22,7 @@ services:
       - key: GROQ_API_KEY
         sync: false          # set manually in Render dashboard
       - key: CORS_ALLOWED_ORIGIN
-        sync: false          # set to your Vercel URL after frontend deploy
-    # Run migrations before each deploy
-    preDeployCommand: /migrate
+        sync: false          # set to your Vercel frontend URL after it deploys
 
 databases:
   - name: legalbridge-db
