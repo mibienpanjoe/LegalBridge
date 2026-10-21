@@ -37,6 +37,9 @@ type citationResponse struct {
 	Index        int    `json:"index"`
 	DocumentName string `json:"document_name"`
 	Passage      string `json:"passage"`
+	PageStart    int    `json:"page_start,omitempty"`
+	PageEnd      int    `json:"page_end,omitempty"`
+	Section      string `json:"section,omitempty"`
 }
 
 type queryResponse struct {
@@ -210,6 +213,9 @@ func (h *APIHandler) handleQuery(c *gin.Context) {
 			Index:        ci.Index,
 			DocumentName: ci.DocumentName,
 			Passage:      ci.Passage,
+			PageStart:    ci.PageStart,
+			PageEnd:      ci.PageEnd,
+			Section:      ci.Section,
 		}
 	}
 

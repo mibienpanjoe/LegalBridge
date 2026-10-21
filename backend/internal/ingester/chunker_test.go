@@ -6,82 +6,183 @@ import (
 	"testing"
 )
 
-func TestChunk_Empty(t *testing.T) {
-	if got := Chunk(""); len(got) != 0 {
-		t.Fatalf("expected 0 chunks for empty input, got %d", len(got))
+// words returns n distinct words "prefix0 prefix1 …".
+func words(prefix string, n int) string {
+	w := make([]string, n)
+	for i := range w {
+		w[i] = fmt.Sprintf("%s%d", prefix, i)
+	}
+	return strings.Join(w, " ")
+}
+
+func TestChunkPages_Empty(t *testing.T) {
+	if got := ChunkPages(nil); len(got) != 0 {
+		t.Fatalf("expected 0 segments for no pages, got %d", len(got))
 	}
 }
 
-func TestChunk_SingleChunk(t *testing.T) {
-	// 100 words fits inside one chunk (chunkSize = 500)
-	text := strings.TrimSpace(strings.Repeat("word ", 100))
-	chunks := Chunk(text)
-	if len(chunks) != 1 {
-		t.Fatalf("expected 1 chunk for 100 words, got %d", len(chunks))
+func TestChunkPages_PacksShortArticles(t *testing.T) {
+	pages := []Page{
+		{Number: 3, Lines: []string{
+			"TITRE I - DISPOSITIONS GENERALES",
+			"Article 1 : La présente loi est applicable aux travailleurs.",
+			"Article 2 : Est considérée comme travailleur toute personne.",
+		}},
+		{Number: 4, Lines: []string{
+			"Article 3 : Les agents de la fonction publique ne sont pas soumis.",
+		}},
+	}
+	got := ChunkPages(pages)
+	if len(got) != 1 {
+		t.Fatalf("expected short articles packed into 1 segment, got %d", len(got))
+	}
+	seg := got[0]
+	if seg.Section != "Article 1–3" {
+		t.Errorf("expected section %q, got %q", "Article 1–3", seg.Section)
+	}
+	if seg.PageStart != 3 || seg.PageEnd != 4 {
+		t.Errorf("expected pages 3–4, got %d–%d", seg.PageStart, seg.PageEnd)
+	}
+	// INV-05: lines are kept verbatim and in order.
+	want := strings.Join(append(pages[0].Lines, pages[1].Lines...), "\n")
+	if seg.Text != want {
+		t.Errorf("segment text altered:\n got %q\nwant %q", seg.Text, want)
 	}
 }
 
-func TestChunk_ExactChunkSize(t *testing.T) {
-	// Exactly chunkSize words → still one chunk, no second chunk needed
-	words := make([]string, chunkSize)
-	for i := range words {
-		words[i] = "word"
+func TestChunkPages_ChunksStartAtArticleBoundaries(t *testing.T) {
+	// Two articles that together exceed chunkSize must not share a chunk.
+	pages := []Page{{Number: 1, Lines: []string{
+		"Article 5 : " + words("a", 200),
+		"Article 6 : " + words("b", 200),
+	}}}
+	got := ChunkPages(pages)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 segments, got %d", len(got))
 	}
-	chunks := Chunk(strings.Join(words, " "))
-	if len(chunks) != 1 {
-		t.Fatalf("expected 1 chunk for exactly %d words, got %d", chunkSize, len(chunks))
+	if got[0].Section != "Article 5" || got[1].Section != "Article 6" {
+		t.Errorf("unexpected sections %q, %q", got[0].Section, got[1].Section)
 	}
-}
-
-func TestChunk_MultipleChunks(t *testing.T) {
-	// 1000 words → step = 450, so we need more than one chunk
-	words := make([]string, 1000)
-	for i := range words {
-		words[i] = "word"
-	}
-	chunks := Chunk(strings.Join(words, " "))
-	if len(chunks) < 2 {
-		t.Fatalf("expected multiple chunks for 1000 words, got %d", len(chunks))
+	if !strings.HasPrefix(got[1].Text, "Article 6 :") {
+		t.Errorf("second segment does not start at its article heading: %.30q", got[1].Text)
 	}
 }
 
-func TestChunk_Overlap(t *testing.T) {
-	// Build 600 uniquely-named words so we can verify overlap by content.
-	words := make([]string, 600)
-	for i := range words {
-		words[i] = fmt.Sprintf("w%d", i)
+func TestChunkPages_SplitsLongArticleWithOverlap(t *testing.T) {
+	var lines []string
+	lines = append(lines, "Article 9 :")
+	for i := 0; i < 40; i++ {
+		lines = append(lines, words(fmt.Sprintf("l%d_", i), 20)) // 800 words in 20-word lines
 	}
-	chunks := Chunk(strings.Join(words, " "))
-	if len(chunks) < 2 {
-		t.Fatal("expected at least 2 chunks for overlap test")
+	got := ChunkPages([]Page{{Number: 7, Lines: lines}})
+	if len(got) < 3 {
+		t.Fatalf("expected ≥3 windows for an 800-word article, got %d", len(got))
+	}
+	for i, seg := range got {
+		if n := len(strings.Fields(seg.Text)); n > chunkSize {
+			t.Errorf("segment %d has %d words, exceeds chunkSize %d", i, n, chunkSize)
+		}
+		if seg.Section != "Article 9" {
+			t.Errorf("segment %d: expected section %q, got %q", i, "Article 9", seg.Section)
+		}
+	}
+	// Consecutive windows share their boundary line(s).
+	firstLines := strings.Split(got[0].Text, "\n")
+	if !strings.HasPrefix(got[1].Text, firstLines[len(firstLines)-1]) {
+		t.Error("expected the second window to start with the first window's last line (overlap)")
+	}
+}
+
+func TestChunkPages_NoHeadingsFallsBackToWindows(t *testing.T) {
+	// A contract-like document: one 1000-word paragraph, no article headings.
+	got := ChunkPages([]Page{{Number: 1, Lines: []string{words("w", 1000)}}})
+	if len(got) < 3 {
+		t.Fatalf("expected ≥3 segments for 1000 words, got %d", len(got))
+	}
+	first := strings.Fields(got[0].Text)
+	second := strings.Fields(got[1].Text)
+	if len(first) != chunkSize {
+		t.Errorf("expected first window of %d words, got %d", chunkSize, len(first))
+	}
+	if second[0] != first[chunkSize-chunkOverlap] {
+		t.Errorf("expected %d-word overlap: second window starts with %q, want %q",
+			chunkOverlap, second[0], first[chunkSize-chunkOverlap])
+	}
+	if got[0].Section != "" {
+		t.Errorf("expected no section label, got %q", got[0].Section)
+	}
+}
+
+func TestChunkPages_SectionsGroupArticlesInCodes(t *testing.T) {
+	pages := []Page{{Number: 1, Lines: []string{
+		"Section 1 : Formation et orientation professionnelles",
+		"Article 7 : Il est créé un conseil national.",
+		"Article 8 : La formation professionnelle est l’ensemble des activités.",
+	}}}
+	got := ChunkPages(pages)
+	if len(got) != 1 || got[0].Section != "Article 7–8" {
+		t.Fatalf("expected one segment labelled %q, got %+v", "Article 7–8", got)
 	}
 
-	chunk0 := strings.Fields(chunks[0])
-	chunk1 := strings.Fields(chunks[1])
+	// Without articles (common-law statute), sections are the units.
+	pages = []Page{{Number: 1, Lines: []string{
+		"Section 12 — Registration of foreign companies",
+		words("a", 200),
+		"Section 13 — Documents to be delivered",
+		words("b", 200),
+	}}}
+	got = ChunkPages(pages)
+	if len(got) != 2 || got[0].Section != "Section 12" || got[1].Section != "Section 13" {
+		t.Fatalf("expected sections 12 and 13 as units, got %d segments", len(got))
+	}
+}
 
-	// The last chunkOverlap words of chunk[0] must equal the first chunkOverlap of chunk[1].
-	tail0 := chunk0[len(chunk0)-chunkOverlap:]
-	head1 := chunk1[:chunkOverlap]
-
-	for i, w := range tail0 {
-		if w != head1[i] {
-			t.Fatalf("overlap mismatch at index %d: chunk0 tail=%q, chunk1 head=%q", i, w, head1[i])
+func TestHeadingRe(t *testing.T) {
+	cases := map[string]string{
+		"Article 1 : La présente loi":     "Article 1",
+		"Article premier.":                "Article premier",
+		"ARTICLE 4 BIS - Dispositions":    "Article 4 bis",
+		"Art. 3 : Le contrat":             "Article 3",
+		"Section 12 — Registration":       "Section 12",
+		"Article 25":                      "Article 25",
+		"Article 12 de la présente loi":   "",
+		"article 7 : lowercase reference": "",
+		"Les articles 3 et 4 :":           "",
+	}
+	for in, want := range cases {
+		m := articleRe.FindStringSubmatch(in)
+		if m == nil {
+			m = sectionRe.FindStringSubmatch(in)
+		}
+		got := ""
+		if m != nil {
+			got = normaliseLabel(m[1])
+		}
+		if got != want {
+			t.Errorf("%q: got label %q, want %q", in, got, want)
 		}
 	}
 }
 
-func TestChunk_ChunkWordCount(t *testing.T) {
-	// All chunks except possibly the last must have exactly chunkSize words.
-	words := make([]string, 1200)
-	for i := range words {
-		words[i] = fmt.Sprintf("w%d", i)
+func TestRemoveRunningHeaders(t *testing.T) {
+	bodies := []string{"Le travail forcé est interdit.", "Le salaire est payé en monnaie.",
+		"La durée du travail est fixée.", "Le repos hebdomadaire est obligatoire.",
+		"Les congés payés sont dus.", "Le préavis est réciproque."}
+	var pages []Page
+	for i := 1; i <= 6; i++ {
+		pages = append(pages, Page{Number: i, Lines: []string{
+			fmt.Sprintf("Page %d sur 116MINISTERE DU TRAVAIL ET%d DE LA SECURITE", i, i),
+			fmt.Sprintf("%d", i), // bare page number
+			"SOCIALE /BURKINA FASO",
+			fmt.Sprintf("Article %d :", i), // heading alone on its line: same key on every page
+			bodies[i-1],
+		}})
 	}
-	chunks := Chunk(strings.Join(words, " "))
-
-	for i, c := range chunks[:len(chunks)-1] {
-		n := len(strings.Fields(c))
-		if n != chunkSize {
-			t.Errorf("chunk[%d] has %d words, want %d", i, n, chunkSize)
+	got := removeRunningHeaders(pages)
+	for _, p := range got {
+		want := []string{fmt.Sprintf("Article %d :", p.Number), bodies[p.Number-1]}
+		if strings.Join(p.Lines, "|") != strings.Join(want, "|") {
+			t.Errorf("page %d: expected %q, got %q", p.Number, want, p.Lines)
 		}
 	}
 }

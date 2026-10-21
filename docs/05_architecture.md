@@ -27,8 +27,8 @@ At MVP scale — one document, a few hundred chunks — pgvector running inside 
 **Outputs:** `IngestResult{DocumentID, ChunkCount}` or error
 
 **Key behaviors:**
-1. Extract full text from PDF using `ledongthuc/pdf` (Go library — no external process)
-2. Split text into ~500-token chunks with 50-token overlap using a word-boundary tokenizer
+1. Extract text page by page, line by line, using `ledongthuc/pdf` (Go library — no external process). Remove running headers/footers (edge lines repeated on ≥ half the pages, article headings exempt).
+2. Chunk at article boundaries (`Article N`, or `Section N` in documents without articles): pack consecutive short articles up to 350 words (≈ 500 tokens), split longer articles into windows with 35-word (≈ 50-token) overlap. Documents without headings fall back to overlapping windows. Each chunk records `page_start`, `page_end` and a `section` label (`Article 12–14`).
 3. For each chunk, call `EmbeddingClient.Embed(chunk.Content, config.EmbeddingModel)`
 4. Batch-write all chunks with their embeddings to `Store.WriteChunks()`
 5. On any embedding API failure: return error immediately without partial writes (EXC-04)
@@ -176,6 +176,9 @@ CREATE TABLE chunks (
     content      TEXT NOT NULL,
     embedding    vector(1024) NOT NULL,
     chunk_index  INTEGER NOT NULL,
+    page_start   INTEGER NOT NULL DEFAULT 0,   -- 1-based; 0 = unknown
+    page_end     INTEGER NOT NULL DEFAULT 0,
+    section      TEXT    NOT NULL DEFAULT '', -- e.g. 'Article 12–14'
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -326,7 +329,7 @@ legalbridge/
 │   │   ├── ingester/
 │   │   │   ├── ingester.go       # Ingest() entry point
 │   │   │   ├── pdf.go            # ledongthuc/pdf text extraction (INV-05)
-│   │   │   └── chunker.go        # 500-token chunking with overlap
+│   │   │   └── chunker.go        # article-aware chunking with page/section metadata
 │   │   ├── query/
 │   │   │   ├── processor.go      # Query() entry point
 │   │   │   └── prompt.go         # RAG prompt template (INV-01, INV-03, INV-07)

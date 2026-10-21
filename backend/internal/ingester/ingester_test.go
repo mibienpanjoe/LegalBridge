@@ -58,13 +58,21 @@ func buildTestText(wordCount int) string {
 	return strings.Join(words, " ")
 }
 
+// textPages wraps text as a single one-line page; empty text yields no pages.
+func textPages(text string) []Page {
+	if text == "" {
+		return nil
+	}
+	return []Page{{Number: 1, Lines: []string{text}}}
+}
+
 func TestIngestText_HappyPath(t *testing.T) {
 	text := buildTestText(600) // > chunkSize → at least 2 chunks
 	ec := &mockEmbeddingClient{}
 	ms := &mockStore{docID: "doc-1"}
 	ing := NewIngester(ms, ec)
 
-	result, err := ing.ingestText(context.Background(), text, "test.pdf")
+	result, err := ing.ingestPages(context.Background(), textPages(text), "test.pdf")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -81,6 +89,9 @@ func TestIngestText_HappyPath(t *testing.T) {
 	if ec.callCount != result.ChunkCount {
 		t.Errorf("Embed called %d times but ChunkCount=%d", ec.callCount, result.ChunkCount)
 	}
+	if ms.writtenChunks[0].PageStart != 1 {
+		t.Errorf("expected page 1 recorded on chunk, got %d", ms.writtenChunks[0].PageStart)
+	}
 }
 
 func TestIngestText_AtomicOnEmbeddingFailure(t *testing.T) {
@@ -94,7 +105,7 @@ func TestIngestText_AtomicOnEmbeddingFailure(t *testing.T) {
 	ms := &mockStore{docID: "doc-2"}
 	ing := NewIngester(ms, ec)
 
-	_, err := ing.ingestText(context.Background(), text, "test.pdf")
+	_, err := ing.ingestPages(context.Background(), textPages(text), "test.pdf")
 	if err == nil {
 		t.Fatal("expected error but got nil")
 	}
@@ -112,7 +123,7 @@ func TestIngestText_AtomicOnEmbeddingFailure(t *testing.T) {
 
 func TestIngestText_EmptyText(t *testing.T) {
 	ing := NewIngester(&mockStore{}, &mockEmbeddingClient{})
-	_, err := ing.ingestText(context.Background(), "", "test.pdf")
+	_, err := ing.ingestPages(context.Background(), textPages(""), "test.pdf")
 	if err == nil {
 		t.Fatal("expected error for empty text")
 	}

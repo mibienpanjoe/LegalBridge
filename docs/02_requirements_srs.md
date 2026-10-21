@@ -25,7 +25,7 @@ Version: v1.0, 2026-03-31
 
 - **FR-011**: The system MUST accept PDF file uploads via `POST /api/ingest` as `multipart/form-data`.
 - **FR-012**: The system MUST extract full text content from the uploaded PDF.
-- **FR-013**: The system MUST split extracted text into chunks of approximately 500 tokens with a minimum 50-token overlap between consecutive chunks.
+- **FR-013**: The system MUST split extracted text into chunks of approximately 500 tokens (350 words). Chunks SHOULD start at article boundaries; an article longer than one chunk MUST be split with a minimum 50-token (35-word) overlap between consecutive windows. Each chunk MUST record its source page range and, when detected, its article/section label.
 - **FR-014**: The system MUST generate a vector embedding for each chunk using the `BAAI/bge-m3` model (1024-dimensional vectors).
 - **FR-015**: The system MUST store each chunk's verbatim text, embedding vector, parent document reference, and chunk index in PostgreSQL.
 - **FR-016**: The system MUST return HTTP 200 with a JSON body containing `document_id` and `chunk_count` upon successful ingestion.

@@ -201,3 +201,22 @@ func TestQuery_ScopedToDocumentWithThreshold(t *testing.T) {
 		t.Errorf("expected minSimilarity %v, got %v", config.MinSimilarity, fs.gotMinSimilarity)
 	}
 }
+
+// TestBuildRAGPrompt_PassageLocation verifies that passages are labelled with
+// their article and pages so the model can name what it cites.
+func TestBuildRAGPrompt_PassageLocation(t *testing.T) {
+	prompt := BuildRAGPrompt([]store.Chunk{
+		{Content: "first", Section: "Article 12", PageStart: 4, PageEnd: 4},
+		{Content: "second", Section: "Article 13–15", PageStart: 4, PageEnd: 5},
+		{Content: "third"},
+	})
+	for _, want := range []string{
+		"[1] (Article 12, p. 4) first",
+		"[2] (Article 13–15, p. 4–5) second",
+		"[3] third",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("prompt missing %q", want)
+		}
+	}
+}

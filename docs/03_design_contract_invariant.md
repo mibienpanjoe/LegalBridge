@@ -41,7 +41,7 @@ The embedding model used to encode document chunks during ingestion MUST be iden
 ### Document Integrity
 
 **INV-05 — Passage Fidelity**
-The `content` field written to each chunk record MUST be the verbatim extracted text from the source PDF. No summarization, paraphrasing, reformulation, or transformation of the source text is permitted between extraction and storage. Citation display MUST use the stored `content` field directly, not a re-generated or reformatted version.
+The `content` field written to each chunk record MUST be the verbatim extracted text from the source PDF. No summarization, paraphrasing, reformulation, or transformation of the source text is permitted between extraction and storage. Citation display MUST use the stored `content` field directly, not a re-generated or reformatted version. Permitted, because they do not alter the legal text: whitespace normalisation within a line, joining lines with `\n`, and removing running page headers/footers (layout artifacts repeated across pages, never article headings).
 
 ### Query Safety
 

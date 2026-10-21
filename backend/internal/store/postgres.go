@@ -72,12 +72,15 @@ func (s *PostgresStore) WriteChunks(ctx context.Context, documentID string, chun
 
 	for _, c := range chunks {
 		_, err := tx.Exec(ctx,
-			`INSERT INTO chunks (document_id, content, embedding, chunk_index)
-			 VALUES ($1, $2, $3, $4)`,
+			`INSERT INTO chunks (document_id, content, embedding, chunk_index, page_start, page_end, section)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 			documentID,
 			c.Content,
 			pgvector.NewVector(c.Embedding),
 			c.ChunkIndex,
+			c.PageStart,
+			c.PageEnd,
+			c.Section,
 		)
 		if err != nil {
 			return &DatabaseUnavailableError{Cause: err}
@@ -101,12 +104,14 @@ func (s *PostgresStore) WriteChunks(ctx context.Context, documentID string, chun
 func (s *PostgresStore) SimilaritySearch(ctx context.Context, documentID string, vector []float32, topK int, minSimilarity float64) ([]Chunk, error) {
 	rows, err := s.pool.Query(ctx,
 		`WITH doc_chunks AS MATERIALIZED (
-		     SELECT c.id, c.document_id, c.content, c.embedding, c.chunk_index, c.created_at,
+		     SELECT c.id, c.document_id, c.content, c.embedding, c.chunk_index,
+		            c.page_start, c.page_end, c.section, c.created_at,
 		            1 - (c.embedding <=> $2) AS similarity
 		     FROM chunks c
 		     WHERE c.document_id = $1
 		 )
-		 SELECT dc.id, dc.document_id, d.filename, dc.content, dc.embedding, dc.chunk_index, dc.created_at, dc.similarity
+		 SELECT dc.id, dc.document_id, d.filename, dc.content, dc.embedding, dc.chunk_index,
+		        dc.page_start, dc.page_end, dc.section, dc.created_at, dc.similarity
 		 FROM doc_chunks dc
 		 JOIN documents d ON d.id = dc.document_id
 		 WHERE dc.similarity >= $4
@@ -126,7 +131,8 @@ func (s *PostgresStore) SimilaritySearch(ctx context.Context, documentID string,
 	for rows.Next() {
 		var c Chunk
 		var vec pgvector.Vector
-		if err := rows.Scan(&c.ID, &c.DocumentID, &c.DocumentFilename, &c.Content, &vec, &c.ChunkIndex, &c.CreatedAt, &c.Similarity); err != nil {
+		if err := rows.Scan(&c.ID, &c.DocumentID, &c.DocumentFilename, &c.Content, &vec, &c.ChunkIndex,
+			&c.PageStart, &c.PageEnd, &c.Section, &c.CreatedAt, &c.Similarity); err != nil {
 			return nil, &DatabaseUnavailableError{Cause: err}
 		}
 		c.Embedding = vec.Slice()
