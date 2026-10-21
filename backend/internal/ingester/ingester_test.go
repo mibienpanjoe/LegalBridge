@@ -121,3 +121,17 @@ func TestIngestText_EmptyText(t *testing.T) {
 		t.Errorf("expected ExtractionFailedError, got %T", err)
 	}
 }
+
+// TestOllamaTag verifies that the shared HuggingFace model id resolves to the
+// Ollama library tag for the same model.
+func TestOllamaTag(t *testing.T) {
+	cases := map[string]string{
+		"BAAI/bge-m3": "bge-m3",
+		"bge-m3":      "bge-m3",
+	}
+	for in, want := range cases {
+		if got := ollamaTag(in); got != want {
+			t.Errorf("ollamaTag(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

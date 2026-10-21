@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/mibienpanjoe/legalbridge/pkg/config"
@@ -45,7 +46,7 @@ type ollamaEmbedResponse struct {
 }
 
 func (c *OllamaClient) Embed(ctx context.Context, text, model string) ([]float32, error) {
-	body, err := json.Marshal(ollamaEmbedRequest{Model: model, Prompt: text})
+	body, err := json.Marshal(ollamaEmbedRequest{Model: ollamaTag(model), Prompt: text})
 	if err != nil {
 		return nil, &EmbeddingUnavailableError{Reason: err.Error()}
 	}
@@ -75,4 +76,14 @@ func (c *OllamaClient) Embed(ctx context.Context, text, model string) ([]float32
 		return nil, &EmbeddingUnavailableError{Reason: err.Error()}
 	}
 	return out.Embedding, nil
+}
+
+// ollamaTag maps a HuggingFace model id to its Ollama library tag
+// ("BAAI/bge-m3" → "bge-m3"). The weights are the same model, so INV-04 holds
+// while config.EmbeddingModel stays the single source of truth.
+func ollamaTag(model string) string {
+	if i := strings.LastIndex(model, "/"); i >= 0 {
+		model = model[i+1:]
+	}
+	return strings.ToLower(model)
 }
