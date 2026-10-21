@@ -20,11 +20,12 @@ type EmbeddingClient interface {
 
 // NewEmbeddingClient returns the EmbeddingClient for the provider in cfg.
 func NewEmbeddingClient(cfg *config.Config) EmbeddingClient {
-	httpClient := &http.Client{Timeout: 30 * time.Second}
+	// Both providers can be slow on a cold start: HF loads the model on demand
+	// and Ollama often runs CPU-only in local dev.
+	httpClient := &http.Client{Timeout: 120 * time.Second}
 	switch cfg.EmbeddingProvider {
 	case "huggingface":
-		hfClient := &http.Client{Timeout: 120 * time.Second}
-		return &HuggingFaceClient{apiKey: cfg.HFAPIKey, http: hfClient}
+		return &HuggingFaceClient{apiKey: cfg.HFAPIKey, http: httpClient}
 	default: // "ollama" or unset
 		return &OllamaClient{baseURL: cfg.OllamaBaseURL, http: httpClient}
 	}
