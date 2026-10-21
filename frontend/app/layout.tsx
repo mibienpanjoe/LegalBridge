@@ -1,27 +1,26 @@
 import type { Metadata } from "next";
-import { Inter, Playfair_Display, JetBrains_Mono } from "next/font/google";
+import { Geist, Source_Serif_4 } from "next/font/google";
+import { LocaleProvider } from "@/lib/i18n";
+import { themeScript } from "@/components/ThemeToggle";
 import "./globals.css";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
+// Geist for the interface; Source Serif 4 for answers and quoted law, which
+// should read like a legal text rather than a chat log.
+const geist = Geist({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-geist",
 });
 
-const playfair = Playfair_Display({
-  subsets: ["latin"],
-  weight: ["600", "700"],
-  variable: "--font-playfair",
-});
-
-const jetbrains = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-jetbrains",
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin", "latin-ext"],
+  axes: ["opsz"],
+  variable: "--font-source-serif",
 });
 
 export const metadata: Metadata = {
-  title: "LegalBridge — Your legal documents, explained.",
+  title: "LegalBridge",
   description:
-    "RAG-based legal document assistant for West African businesses. Upload a legal PDF, ask questions, get cited answers.",
+    "Ask questions about a legal PDF in French or English and get answers that cite the exact passage.",
 };
 
 export default function RootLayout({
@@ -31,11 +30,15 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
-      className={`${inter.variable} ${playfair.variable} ${jetbrains.variable} h-full`}
+      lang="fr"
+      suppressHydrationWarning // the theme script adds .dark before hydration
+      className={`${geist.variable} ${sourceSerif.variable} h-full`}
     >
-      <body className="min-h-full flex flex-col bg-[#F7F8FA] text-[#111827]">
-        {children}
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body className="flex min-h-full flex-col">
+        <LocaleProvider>{children}</LocaleProvider>
       </body>
     </html>
   );

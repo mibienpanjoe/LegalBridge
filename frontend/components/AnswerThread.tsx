@@ -2,11 +2,8 @@
 
 import { useState } from "react";
 import type { HistoryEntry } from "@/app/page";
-import {
-  citationLocation,
-  type Citation,
-  type QueryStage,
-} from "@/lib/api";
+import { citationLocation, type Citation, type QueryStage } from "@/lib/api";
+import { useLocale } from "@/lib/i18n";
 
 interface Props {
   history: HistoryEntry[];
@@ -21,114 +18,89 @@ export default function AnswerThread({
   searchingQuestion,
   searchingStage,
 }: Props) {
+  const { t } = useLocale();
+
+  const stageLabel = (stage?: QueryStage) => {
+    if (stage?.stage === "generating") return t.stageGenerating;
+    if (stage?.stage === "sources") {
+      const where = stage.passages
+        .map((p) => p.section)
+        .filter(Boolean)
+        .join(", ");
+      return t.stageSources(stage.passages.length, where);
+    }
+    return t.stageSearching;
+  };
+
   return (
-    <section aria-label="Conversation" className="space-y-6">
-      {/* Past Q&A entries */}
+    <section aria-label={t.askHeading} className="space-y-10">
       {history.map((entry, i) => (
         <AnswerEntry key={i} entry={entry} entryIndex={i} />
       ))}
 
-      {/* Loading skeleton for in-flight query */}
       {isSearching && (
         <div aria-live="polite" aria-busy="true">
-          {/* Fix 8: show the question being searched */}
-          {searchingQuestion && (
-            <QuestionBubble question={searchingQuestion} />
-          )}
-          <div className="mt-3 animate-pulse space-y-3 rounded-lg border border-[#D1D5DB] bg-white px-6 py-5">
-            <div className="h-4 w-3/4 rounded bg-[#E5E7EB]" />
-            <div className="h-4 w-full rounded bg-[#E5E7EB]" />
-            <div className="h-4 w-5/6 rounded bg-[#E5E7EB]" />
+          {searchingQuestion && <QuestionLine question={searchingQuestion} />}
+          <div className="mt-4 space-y-2.5" aria-hidden="true">
+            <div className="h-3.5 w-3/4 animate-pulse rounded bg-muted" />
+            <div className="h-3.5 w-full animate-pulse rounded bg-muted" />
+            <div className="h-3.5 w-5/6 animate-pulse rounded bg-muted" />
           </div>
-          <p className="mt-2 text-sm text-[#9CA3AF]">{stageLabel(searchingStage)}</p>
+          <p className="mt-3 text-sm text-muted-foreground">{stageLabel(searchingStage)}</p>
         </div>
       )}
     </section>
   );
 }
 
-function stageLabel(stage?: QueryStage): string {
-  if (stage?.stage === "generating") return "Writing a cited answer…";
-  if (stage?.stage === "sources") {
-    const where = stage.passages
-      .map((p) => p.section)
-      .filter(Boolean)
-      .join(", ");
-    return `Found ${stage.passages.length} passage${stage.passages.length !== 1 ? "s" : ""}${where ? ` in ${where}` : ""}`;
-  }
-  return "Searching relevant passages…";
-}
+// ─── Single Q&A ───────────────────────────────────────────────────────────────
 
-// ─── Single Q&A card ──────────────────────────────────────────────────────────
+function AnswerEntry({ entry, entryIndex }: { entry: HistoryEntry; entryIndex: number }) {
+  const { t } = useLocale();
 
-function AnswerEntry({
-  entry,
-  entryIndex,
-}: {
-  entry: HistoryEntry;
-  entryIndex: number;
-}) {
   if (entry.noResults) {
     return (
       <div>
-        <QuestionBubble question={entry.question} />
-        <div className="mt-3 rounded-lg border border-[#D1D5DB] bg-white px-6 py-5 text-sm text-[#4B5563]">
-          <p className="font-medium text-[#111827]">No relevant passages found</p>
-          <p className="mt-1">
-            The document doesn't appear to contain information related to your
-            question. Try rephrasing or asking about a different topic.
-          </p>
+        <QuestionLine question={entry.question} />
+        <div className="mt-4 border-l-2 border-border pl-4">
+          <p className="font-medium">{t.noResultsTitle}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t.noResultsBody}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="animate-in fade-in-0 slide-in-from-bottom-1 duration-300">
-      {/* Fix 8: question label */}
-      <QuestionBubble question={entry.question} />
+    <article className="animate-in fade-in-0 duration-300">
+      <QuestionLine question={entry.question} />
 
-      {/* Answer */}
-      <div className="mt-3 rounded-lg border border-[#D1D5DB] bg-white px-6 py-5">
-        <p className="text-[15px] leading-[1.7] text-[#111827] max-w-[720px]">
-          {/* Fix 5: render [N] refs as clickable anchors */}
-          <AnswerText
-            text={entry.answer}
-            citations={entry.citations}
-            entryIndex={entryIndex}
-          />
-        </p>
-      </div>
+      <p className="mt-4 max-w-[68ch] font-serif text-[17px] leading-[1.7]">
+        <AnswerText text={entry.answer} citations={entry.citations} entryIndex={entryIndex} />
+      </p>
 
-      {/* Fix 1: collapsible citations */}
       {entry.citations && entry.citations.length > 0 && (
-        <div className="mt-4">
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.06em] text-[#4B5563]">
-            Sources
-          </h3>
-          <ul className="space-y-3" aria-label="Source passages">
+        <div className="mt-6">
+          <h3 className="mb-3 text-sm font-medium text-muted-foreground">{t.sources}</h3>
+          <ol className="space-y-3">
             {entry.citations.map((c) => (
               <li key={c.index}>
                 <CitationBlock citation={c} entryIndex={entryIndex} />
               </li>
             ))}
-          </ul>
+          </ol>
         </div>
       )}
-    </div>
+    </article>
   );
 }
 
-// ─── Question bubble ──────────────────────────────────────────────────────────
-
-function QuestionBubble({ question }: { question: string }) {
+function QuestionLine({ question }: { question: string }) {
+  const { t } = useLocale();
   return (
-    <div className="flex items-start gap-2">
-      <span className="mt-0.5 shrink-0 rounded-full bg-[#1B3A5C] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
-        You
-      </span>
-      <p className="text-[15px] font-medium text-[#111827]">{question}</p>
-    </div>
+    <p className="text-[15px] font-medium">
+      <span className="sr-only">{t.you}: </span>
+      {question}
+    </p>
   );
 }
 
@@ -149,14 +121,8 @@ function AnswerText({
   citations: Citation[];
   entryIndex: number;
 }) {
+  const { t } = useLocale();
   const parts = text.split(/(\[\d+\])/g);
-
-  const scrollTo = (idx: number) => {
-    document.getElementById(citationId(entryIndex, idx))?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
-  };
 
   return (
     <>
@@ -164,16 +130,20 @@ function AnswerText({
         const match = part.match(/^\[(\d+)\]$/);
         if (match) {
           const idx = parseInt(match[1]);
-          const exists = citations.some((c) => c.index === idx);
-          if (exists) {
+          if (citations.some((c) => c.index === idx)) {
             return (
               <button
                 key={i}
-                onClick={() => scrollTo(idx)}
-                className="inline-flex items-center rounded px-1 py-0.5 text-[12px] font-semibold text-white bg-[#C9873A] hover:bg-[#b5762e] transition-colors mx-0.5 align-middle"
-                aria-label={`Jump to source ${idx}`}
+                type="button"
+                onClick={() =>
+                  document
+                    .getElementById(citationId(entryIndex, idx))
+                    ?.scrollIntoView({ behavior: "smooth", block: "center" })
+                }
+                className="highlighter mx-0.5 rounded-sm px-1 font-sans text-[13px] font-semibold text-highlight-ink align-[1px] transition-colors hover:bg-highlight-soft focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                aria-label={t.jumpToSource(idx)}
               >
-                {part}
+                {idx}
               </button>
             );
           }
@@ -184,17 +154,12 @@ function AnswerText({
   );
 }
 
-// ─── Citation block (collapsible) ─────────────────────────────────────────────
+// ─── Source passage (collapsible) ─────────────────────────────────────────────
 
-const PREVIEW_CHARS = 220;
+const PREVIEW_CHARS = 280;
 
-function CitationBlock({
-  citation,
-  entryIndex,
-}: {
-  citation: Citation;
-  entryIndex: number;
-}) {
+function CitationBlock({ citation, entryIndex }: { citation: Citation; entryIndex: number }) {
+  const { t } = useLocale();
   const [expanded, setExpanded] = useState(false);
   const isLong = citation.passage.length > PREVIEW_CHARS;
   const displayed =
@@ -203,35 +168,29 @@ function CitationBlock({
       : citation.passage.slice(0, PREVIEW_CHARS).trimEnd() + "…";
 
   return (
-    <div
+    <figure
       id={citationId(entryIndex, citation.index)}
-      className="rounded-r-lg border-l-4 border-l-[#C9873A] bg-[#F7F8FA] py-4 pl-4 pr-5"
+      className="scroll-mt-24 rounded-lg border bg-card p-4"
     >
-      {/* Badge */}
-      <span className="inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold text-white bg-[#C9873A] mb-2">
-        [{citation.index}]
-      </span>
-
-      {/* Passage text */}
-      <p className="whitespace-pre-line font-mono text-[13px] leading-[1.6] text-[#374151]">
+      <figcaption className="mb-2 flex items-baseline gap-2 text-xs text-muted-foreground">
+        <span className="highlighter rounded-sm px-1 font-semibold text-highlight-ink">
+          {citation.index}
+        </span>
+        <span>{citationLocation(citation)}</span>
+      </figcaption>
+      <blockquote className="whitespace-pre-line font-serif text-[15px] leading-[1.65]">
         {displayed}
-      </p>
-
-      {/* Fix 1: expand / collapse toggle */}
+      </blockquote>
       {isLong && (
         <button
+          type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mt-2 text-[12px] font-medium text-[#C9873A] hover:text-[#b5762e] transition-colors"
+          className="mt-2 min-h-9 text-sm font-medium text-highlight-ink underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           aria-expanded={expanded}
         >
-          {expanded ? "Show less ↑" : "Show more ↓"}
+          {expanded ? t.showLess : t.showMore}
         </button>
       )}
-
-      {/* Document label */}
-      <p className="mt-2 text-[11px] font-medium text-[#9CA3AF]">
-        {citationLocation(citation)}
-      </p>
-    </div>
+    </figure>
   );
 }

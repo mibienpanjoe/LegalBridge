@@ -5,6 +5,8 @@ import Disclaimer from "@/components/Disclaimer";
 import DocumentUpload, { type UploadStatus } from "@/components/DocumentUpload";
 import QueryInput from "@/components/QueryInput";
 import AnswerThread from "@/components/AnswerThread";
+import ThemeToggle from "@/components/ThemeToggle";
+import LocaleToggle from "@/components/LocaleToggle";
 import {
   ApiError,
   ingestDocument,
@@ -12,8 +14,12 @@ import {
   type Citation,
   type QueryStage,
 } from "@/lib/api";
+import { errorMessage, useLocale } from "@/lib/i18n";
 
 // ─── State types ──────────────────────────────────────────────────────────────
+
+// Errors keep the API code so the message is localized at render time.
+type Failure = { message: string; code?: string };
 
 type UploadState =
   | { status: "idle" }
@@ -25,12 +31,12 @@ type UploadState =
       filename: string;
       expiresAt?: string;
     }
-  | { status: "error"; message: string };
+  | ({ status: "error" } & Failure);
 
 type QueryState =
   | { status: "idle" }
   | { status: "searching"; question: string; stage?: QueryStage }
-  | { status: "error"; message: string };
+  | ({ status: "error" } & Failure);
 
 export type HistoryEntry = {
   question: string;
@@ -39,17 +45,15 @@ export type HistoryEntry = {
   noResults: boolean;
 };
 
-// ─── Suggested questions (generic legal, bilingual) ───────────────────────────
-
-const SUGGESTED_QUESTIONS = [
-  "Quels sont les droits et obligations des parties ?",
-  "Quelles sont les conditions requises ?",
-  "Quelles sont les sanctions prévues ?",
-];
+function toFailure(err: unknown, fallback: string): Failure {
+  if (err instanceof ApiError) return { message: err.message, code: err.code };
+  return { message: err instanceof Error ? err.message : fallback };
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Home() {
+  const { t } = useLocale();
   const [uploadState, setUploadState] = useState<UploadState>({ status: "idle" });
   const [queryState, setQueryState] = useState<QueryState>({ status: "idle" });
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -70,10 +74,7 @@ export default function Home() {
         expiresAt: res.expires_at,
       });
     } catch (err) {
-      setUploadState({
-        status: "error",
-        message: err instanceof Error ? err.message : "Upload failed.",
-      });
+      setUploadState({ status: "error", ...toFailure(err, "Upload failed.") });
     }
   }, []);
 
@@ -82,20 +83,16 @@ export default function Home() {
     if (!q || uploadState.status !== "success") return;
     const { documentId } = uploadState;
 
-    // Fix 4: clear input immediately after submit
     setQuestion("");
     setQueryState({ status: "searching", question: q });
-
-    // Fix 6: scroll to the answer area
     setTimeout(() => {
-      answerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      answerRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     }, 80);
 
     try {
       const res = await queryDocumentStream(documentId, q, (stage) =>
         setQueryState({ status: "searching", question: q, stage })
       );
-      // Fix 3: push to history instead of replacing
       setHistory((prev) => [
         ...prev,
         {
@@ -107,93 +104,60 @@ export default function Home() {
       ]);
       setQueryState({ status: "idle" });
     } catch (err) {
+      const failure = toFailure(err, "Query failed.");
       // The upload expired server-side: go back to the upload step.
-      if (err instanceof ApiError && err.code === "DOCUMENT_NOT_FOUND") {
-        setUploadState({ status: "error", message: err.message });
+      if (failure.code === "DOCUMENT_NOT_FOUND") {
+        setUploadState({ status: "error", ...failure });
         setQueryState({ status: "idle" });
         setHistory([]);
         return;
       }
-      setQueryState({
-        status: "error",
-        message: err instanceof Error ? err.message : "Query failed.",
-      });
+      setQueryState({ status: "error", ...failure });
     }
   }, [question, uploadState]);
 
   const uploadStatus: UploadStatus =
-    uploadState.status === "idle" ||
-    uploadState.status === "uploading" ||
-    uploadState.status === "error"
-      ? uploadState.status
-      : "success";
+    uploadState.status === "success" ? "success" : uploadState.status;
 
   const showQuery = uploadState.status === "success";
-  const showThread =
-    history.length > 0 ||
-    queryState.status === "searching" ||
-    queryState.status === "error";
+  const showThread = history.length > 0 || queryState.status === "searching";
 
   return (
     <div className="flex min-h-screen flex-col">
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className="bg-[#1B3A5C] px-4 py-6 md:px-12">
-        <div className="mx-auto max-w-4xl">
-          <h1 className="font-heading text-2xl font-bold text-white">
-            LegalBridge
-          </h1>
-          <p className="mt-1 text-sm text-white/70">
-            Your legal documents, explained.
-          </p>
+      <header className="border-b">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3 md:px-6">
+          <div className="min-w-0">
+            <h1 className="font-heading text-xl font-semibold tracking-tight text-primary">
+              LegalBridge
+            </h1>
+            <p className="truncate text-sm text-muted-foreground">{t.tagline}</p>
+          </div>
+          <div className="flex shrink-0 items-center">
+            <LocaleToggle />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
-      {/* ── Main content ───────────────────────────────────────────────────── */}
-      <main className="mx-auto w-full max-w-4xl flex-1 space-y-6 px-4 py-8 md:px-12">
-        {/* Fix 7: dismissible disclaimer */}
-        <Disclaimer />
-
-        {/* Upload zone */}
+      <main className="mx-auto w-full max-w-3xl flex-1 space-y-8 px-4 py-8 md:px-6">
         <section aria-labelledby="upload-heading">
-          <h2
-            id="upload-heading"
-            className="mb-3 text-xs font-semibold uppercase tracking-widest text-[#4B5563]"
-          >
-            Upload document
+          <h2 id="upload-heading" className="mb-2 text-sm font-medium text-muted-foreground">
+            {t.uploadHeading}
           </h2>
           <DocumentUpload
             status={uploadStatus}
-            chunkCount={
-              uploadState.status === "success" ? uploadState.chunkCount : undefined
-            }
-            filename={
-              uploadState.status === "success" ? uploadState.filename : undefined
-            }
-            expiresAt={
-              uploadState.status === "success" ? uploadState.expiresAt : undefined
-            }
+            chunkCount={uploadState.status === "success" ? uploadState.chunkCount : undefined}
+            filename={uploadState.status === "success" ? uploadState.filename : undefined}
+            expiresAt={uploadState.status === "success" ? uploadState.expiresAt : undefined}
             error={
-              uploadState.status === "error" ? uploadState.message : undefined
+              uploadState.status === "error"
+                ? errorMessage(t, uploadState.code, uploadState.message)
+                : undefined
             }
             onUpload={handleUpload}
           />
         </section>
 
-        {/* Query input — only visible after a successful upload */}
-        {showQuery && (
-          <QueryInput
-            question={question}
-            onQuestionChange={setQuestion}
-            onSubmit={handleQuery}
-            isLoading={queryState.status === "searching"}
-            error={
-              queryState.status === "error" ? queryState.message : undefined
-            }
-            suggestedQuestions={SUGGESTED_QUESTIONS}
-          />
-        )}
-
-        {/* Fix 3: conversation thread */}
         {showThread && (
           <div ref={answerRef}>
             <AnswerThread
@@ -202,17 +166,31 @@ export default function Home() {
               searchingQuestion={
                 queryState.status === "searching" ? queryState.question : undefined
               }
-              searchingStage={
-                queryState.status === "searching" ? queryState.stage : undefined
-              }
+              searchingStage={queryState.status === "searching" ? queryState.stage : undefined}
             />
           </div>
         )}
+
+        {showQuery && (
+          <QueryInput
+            question={question}
+            onQuestionChange={setQuestion}
+            onSubmit={handleQuery}
+            isLoading={queryState.status === "searching"}
+            error={
+              queryState.status === "error"
+                ? errorMessage(t, queryState.code, queryState.message)
+                : undefined
+            }
+            showSuggestions={history.length === 0}
+          />
+        )}
+
+        <Disclaimer />
       </main>
 
-      {/* ── Footer ─────────────────────────────────────────────────────────── */}
-      <footer className="border-t border-[#D1D5DB] px-4 py-6 text-center text-sm text-[#9CA3AF]">
-        Powered by open-source AI · Built for West Africa
+      <footer className="border-t px-4 py-5 text-center text-sm text-muted-foreground">
+        {t.footer}
       </footer>
     </div>
   );
