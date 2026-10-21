@@ -23,6 +23,9 @@ type Citation struct {
 	Index        int    // 1-based index matching the [N] marker in the answer
 	DocumentName string // original filename of the source document
 	Passage      string // verbatim chunk text (INV-05 guarantees this is unmodified)
+	PageStart    int    // first source page of the passage (0 if unknown)
+	PageEnd      int    // last source page of the passage
+	Section      string // article/section label, e.g. "Article 12"; may be empty
 }
 
 // QueryResult is returned by a successful Query call.
@@ -112,6 +115,9 @@ func parseCitations(answer string, chunks []store.Chunk) []Citation {
 			Index:        n,
 			DocumentName: chunks[n-1].DocumentFilename,
 			Passage:      chunks[n-1].Content,
+			PageStart:    chunks[n-1].PageStart,
+			PageEnd:      chunks[n-1].PageEnd,
+			Section:      chunks[n-1].Section,
 		})
 	}
 

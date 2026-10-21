@@ -49,7 +49,8 @@ func writeDoc(t *testing.T, s *PostgresStore, name string, thetas ...float64) st
 
 	chunks := make([]Chunk, len(thetas))
 	for i, th := range thetas {
-		chunks[i] = Chunk{Content: name, Embedding: unitVector(th), ChunkIndex: i}
+		chunks[i] = Chunk{Content: name, Embedding: unitVector(th), ChunkIndex: i,
+			PageStart: i + 1, PageEnd: i + 2, Section: "Article " + name}
 	}
 	if err := s.WriteChunks(ctx, id, chunks); err != nil {
 		t.Fatalf("write chunks: %v", err)
@@ -78,6 +79,10 @@ func TestSimilaritySearch_ScopedToDocument(t *testing.T) {
 	}
 	if got[0].Similarity < got[1].Similarity {
 		t.Error("results are not ordered nearest-first")
+	}
+	// Location metadata round-trips: chunk 0 (θ=0.5) is the nearest.
+	if got[0].PageStart != 1 || got[0].PageEnd != 2 || got[0].Section != "Article mine.pdf" {
+		t.Errorf("location not persisted: pages %d–%d, section %q", got[0].PageStart, got[0].PageEnd, got[0].Section)
 	}
 }
 

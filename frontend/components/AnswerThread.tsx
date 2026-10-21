@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { HistoryEntry } from "@/app/page";
-import type { Citation } from "@/lib/api";
+import { citationLocation, type Citation } from "@/lib/api";
 
 interface Props {
   history: HistoryEntry[];
@@ -195,7 +195,7 @@ function CitationBlock({
       </span>
 
       {/* Passage text */}
-      <p className="font-mono text-[13px] leading-[1.6] text-[#374151]">
+      <p className="whitespace-pre-line font-mono text-[13px] leading-[1.6] text-[#374151]">
         {displayed}
       </p>
 
@@ -212,7 +212,7 @@ function CitationBlock({
 
       {/* Document label */}
       <p className="mt-2 text-[11px] font-medium text-[#9CA3AF]">
-        {citation.document_name}
+        {citationLocation(citation)}
       </p>
     </div>
   );

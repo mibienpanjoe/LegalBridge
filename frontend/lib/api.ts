@@ -4,6 +4,24 @@ export interface Citation {
   index: number;
   document_name: string;
   passage: string;
+  page_start?: number;
+  page_end?: number;
+  section?: string;
+}
+
+/** "Article 12 · p. 4–5 · code.pdf" — the parts of a citation's location that are known. */
+export function citationLocation(c: Citation): string {
+  const parts: string[] = [];
+  if (c.section) parts.push(c.section);
+  if (c.page_start) {
+    parts.push(
+      c.page_end && c.page_end > c.page_start
+        ? `p. ${c.page_start}–${c.page_end}`
+        : `p. ${c.page_start}`
+    );
+  }
+  parts.push(c.document_name);
+  return parts.join(" · ");
 }
 
 export interface IngestResponse {

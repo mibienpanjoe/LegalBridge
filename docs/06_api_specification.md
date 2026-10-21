@@ -261,7 +261,10 @@ Content-Type: application/json
 {
   "index": 1,
   "document_name": "ghana_companies_act.pdf",
-  "passage": "Verbatim extracted text from the source document chunk..."
+  "passage": "Verbatim extracted text from the source document chunk...",
+  "page_start": 12,
+  "page_end": 13,
+  "section": "Article 37–39"
 }
 ```
 
@@ -269,7 +272,10 @@ Content-Type: application/json
 |-------|------|-------------|
 | `index` | integer | 1-based index matching the `[N]` reference in the answer text |
 | `document_name` | string | Original filename of the source document |
-| `passage` | string | Verbatim extracted text from the chunk used in synthesis |
+| `passage` | string | Verbatim extracted text from the chunk used in synthesis. Lines are separated by `\n`. |
+| `page_start` | integer | (omitted if unknown) First 1-based PDF page of the passage |
+| `page_end` | integer | (omitted if unknown) Last PDF page of the passage |
+| `section` | string | (omitted if unknown) Article/section label, e.g. `"Article 12"` or `"Article 12–14"` |
 
 ### Error Object
 

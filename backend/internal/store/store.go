@@ -14,6 +14,9 @@ type Chunk struct {
 	Content          string
 	Embedding        []float32
 	ChunkIndex       int
+	PageStart        int    // first source PDF page of the chunk (1-based; 0 if unknown)
+	PageEnd          int    // last source PDF page of the chunk
+	Section          string // article/section label, e.g. "Article 12"; empty if unknown
 	CreatedAt        time.Time
 	Similarity       float64 // cosine similarity to the query; populated by SimilaritySearch
 }

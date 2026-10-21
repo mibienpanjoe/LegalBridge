@@ -30,9 +30,28 @@ func BuildRAGPrompt(chunks []store.Chunk) string {
 	sb.WriteString(systemInstructions)
 	sb.WriteString("\n\nContext passages:\n")
 	for i, c := range chunks {
-		fmt.Fprintf(&sb, "[%d] %s\n\n", i+1, c.Content)
+		fmt.Fprintf(&sb, "[%d]%s %s\n\n", i+1, passageLocation(c), c.Content)
 	}
 	sb.WriteString("Instructions: Answer the question using only the context passages above. " +
 		"Do not use any knowledge beyond what is provided in the passages.")
 	return sb.String()
+}
+
+// passageLocation renders " (Article 12, p. 4)" so the model can name the
+// article it cites. It returns "" when nothing is known about the location.
+func passageLocation(c store.Chunk) string {
+	var parts []string
+	if c.Section != "" {
+		parts = append(parts, c.Section)
+	}
+	switch {
+	case c.PageStart > 0 && c.PageEnd > c.PageStart:
+		parts = append(parts, fmt.Sprintf("p. %d–%d", c.PageStart, c.PageEnd))
+	case c.PageStart > 0:
+		parts = append(parts, fmt.Sprintf("p. %d", c.PageStart))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(parts, ", ") + ")"
 }
