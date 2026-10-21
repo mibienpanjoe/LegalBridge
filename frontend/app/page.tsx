@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import Disclaimer from "@/components/Disclaimer";
-import DocumentUpload, { type UploadStatus } from "@/components/DocumentUpload";
-import QueryInput from "@/components/QueryInput";
-import AnswerThread from "@/components/AnswerThread";
+import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { ArrowLeft, FileText } from "lucide-react";
+import Landing from "@/components/workspace/Landing";
+import AssistantPanel, { type HistoryEntry } from "@/components/workspace/AssistantPanel";
 import ThemeToggle from "@/components/ThemeToggle";
 import LocaleToggle from "@/components/LocaleToggle";
 import {
@@ -16,6 +16,11 @@ import {
 } from "@/lib/api";
 import { errorMessage, useLocale } from "@/lib/i18n";
 
+// pdf.js needs the browser; never render the viewer on the server.
+const DocumentViewer = dynamic(() => import("@/components/workspace/DocumentViewer"), {
+  ssr: false,
+});
+
 // ─── State types ──────────────────────────────────────────────────────────────
 
 // Errors keep the API code so the message is localized at render time.
@@ -26,51 +31,50 @@ type UploadState =
   | { status: "uploading" }
   | {
       status: "success";
+      file: File;
       documentId: string;
       chunkCount: number;
-      filename: string;
       expiresAt?: string;
     }
   | ({ status: "error" } & Failure);
 
 type QueryState =
   | { status: "idle" }
-  | { status: "searching"; question: string; stage?: QueryStage }
+  | { status: "searching"; question: string; stage?: QueryStage; passages?: Citation[] }
   | ({ status: "error" } & Failure);
-
-export type HistoryEntry = {
-  question: string;
-  answer: string;
-  citations: Citation[];
-  noResults: boolean;
-};
 
 function toFailure(err: unknown, fallback: string): Failure {
   if (err instanceof ApiError) return { message: err.message, code: err.code };
   return { message: err instanceof Error ? err.message : fallback };
 }
 
+// Matches Tailwind's lg breakpoint, where the viewer sits beside the answers.
+const SPLIT_QUERY = "(min-width: 1024px)";
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Home() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [uploadState, setUploadState] = useState<UploadState>({ status: "idle" });
   const [queryState, setQueryState] = useState<QueryState>({ status: "idle" });
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [question, setQuestion] = useState("");
-  const answerRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState<Citation>();
+  const [sheetOpen, setSheetOpen] = useState(false); // viewer on small screens
+  const replaceRef = useRef<HTMLInputElement>(null);
 
   const handleUpload = useCallback(async (file: File) => {
     setUploadState({ status: "uploading" });
     setQueryState({ status: "idle" });
     setHistory([]);
+    setActive(undefined);
     try {
       const res = await ingestDocument(file);
       setUploadState({
         status: "success",
+        file,
         documentId: res.document_id,
         chunkCount: res.chunk_count,
-        filename: file.name,
         expiresAt: res.expires_at,
       });
     } catch (err) {
@@ -85,13 +89,20 @@ export default function Home() {
 
     setQuestion("");
     setQueryState({ status: "searching", question: q });
-    setTimeout(() => {
-      answerRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    }, 80);
 
     try {
       const res = await queryDocumentStream(documentId, q, (stage) =>
-        setQueryState({ status: "searching", question: q, stage })
+        setQueryState((prev) => ({
+          status: "searching",
+          question: q,
+          stage,
+          passages:
+            stage.stage === "sources"
+              ? stage.passages
+              : prev.status === "searching"
+                ? prev.passages
+                : undefined,
+        }))
       );
       setHistory((prev) => [
         ...prev,
@@ -103,6 +114,8 @@ export default function Home() {
         },
       ]);
       setQueryState({ status: "idle" });
+      // Point the document at the first source of the new answer.
+      if (res.citations[0]?.page_start) setActive(res.citations[0]);
     } catch (err) {
       const failure = toFailure(err, "Query failed.");
       // The upload expired server-side: go back to the upload step.
@@ -110,88 +123,170 @@ export default function Home() {
         setUploadState({ status: "error", ...failure });
         setQueryState({ status: "idle" });
         setHistory([]);
+        setActive(undefined);
         return;
       }
       setQueryState({ status: "error", ...failure });
     }
   }, [question, uploadState]);
 
-  const uploadStatus: UploadStatus =
-    uploadState.status === "success" ? "success" : uploadState.status;
+  const showSource = useCallback((c: Citation) => {
+    setActive(c);
+    if (!window.matchMedia(SPLIT_QUERY).matches) setSheetOpen(true);
+  }, []);
 
-  const showQuery = uploadState.status === "success";
-  const showThread = history.length > 0 || queryState.status === "searching";
+  // Close the small-screen viewer with Escape.
+  useEffect(() => {
+    if (!sheetOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setSheetOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sheetOpen]);
 
-  return (
-    <div className="flex min-h-screen flex-col">
-      <header className="border-b">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3 md:px-6">
-          <div className="min-w-0">
+  const toggles = (
+    <div className="flex shrink-0 items-center">
+      <LocaleToggle />
+      <ThemeToggle />
+    </div>
+  );
+
+  // ── Before a document is loaded ────────────────────────────────────────────
+  if (uploadState.status !== "success") {
+    return (
+      <div className="flex min-h-dvh flex-col">
+        <header className="border-b">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-2 md:px-8">
             <h1 className="font-heading text-xl font-semibold tracking-tight text-primary">
               LegalBridge
             </h1>
-            <p className="truncate text-sm text-muted-foreground">{t.tagline}</p>
+            {toggles}
           </div>
-          <div className="flex shrink-0 items-center">
-            <LocaleToggle />
-            <ThemeToggle />
+        </header>
+        <Landing
+          status={uploadState.status}
+          error={
+            uploadState.status === "error"
+              ? errorMessage(t, uploadState.code, uploadState.message)
+              : undefined
+          }
+          onUpload={handleUpload}
+        />
+        <footer className="border-t px-4 py-5 text-center text-sm text-muted-foreground">
+          {t.footer}
+        </footer>
+      </div>
+    );
+  }
+
+  // ── Workspace ──────────────────────────────────────────────────────────────
+  const { file, chunkCount, expiresAt } = uploadState;
+  const when =
+    expiresAt &&
+    new Date(expiresAt).toLocaleString(locale, {
+      weekday: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  return (
+    <div className="flex h-dvh flex-col">
+      <header className="flex items-center gap-3 border-b px-4 py-2">
+        <h1 className="font-heading text-lg font-semibold tracking-tight text-primary">
+          LegalBridge
+        </h1>
+        <div className="flex min-w-0 flex-1 items-center gap-2 border-l pl-3">
+          <FileText className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{file.name}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {t.passages(chunkCount)}
+              {when && <>, {t.deletedAt(when)}</>}
+            </p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setSheetOpen(true)}
+          className="h-11 shrink-0 rounded-md px-3 text-sm font-medium text-primary hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring lg:hidden"
+        >
+          {t.viewerOpen}
+        </button>
+        <button
+          type="button"
+          onClick={() => replaceRef.current?.click()}
+          className="hidden h-11 shrink-0 rounded-md px-3 text-sm font-medium text-primary hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:block"
+        >
+          {t.newDocument}
+        </button>
+        <input
+          ref={replaceRef}
+          type="file"
+          accept=".pdf,application/pdf"
+          className="sr-only"
+          aria-label={t.uploadReplaceLabel}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleUpload(f);
+            e.target.value = "";
+          }}
+        />
+        {toggles}
       </header>
 
-      <main className="mx-auto w-full max-w-3xl flex-1 space-y-8 px-4 py-8 md:px-6">
-        <section aria-labelledby="upload-heading">
-          <h2 id="upload-heading" className="mb-2 text-sm font-medium text-muted-foreground">
-            {t.uploadHeading}
-          </h2>
-          <DocumentUpload
-            status={uploadStatus}
-            chunkCount={uploadState.status === "success" ? uploadState.chunkCount : undefined}
-            filename={uploadState.status === "success" ? uploadState.filename : undefined}
-            expiresAt={uploadState.status === "success" ? uploadState.expiresAt : undefined}
-            error={
-              uploadState.status === "error"
-                ? errorMessage(t, uploadState.code, uploadState.message)
+      <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(400px,42%)]">
+        {/* Document: beside the answers on large screens, a sheet on small ones. */}
+        <div
+          className={
+            sheetOpen
+              ? "fixed inset-0 z-40 flex flex-col bg-background lg:static lg:z-auto"
+              : "hidden min-h-0 lg:block"
+          }
+          role={sheetOpen ? "dialog" : undefined}
+          aria-modal={sheetOpen || undefined}
+          aria-label={t.viewerLabel}
+        >
+          {sheetOpen && (
+            <div className="flex items-center border-b px-2 py-1 lg:hidden">
+              <button
+                type="button"
+                onClick={() => setSheetOpen(false)}
+                className="inline-flex h-11 items-center gap-2 rounded-md px-3 text-sm font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                <ArrowLeft className="size-4" aria-hidden="true" />
+                {t.viewerClose}
+              </button>
+            </div>
+          )}
+          <div className="min-h-0 flex-1 lg:h-full">
+            <DocumentViewer file={file} active={active} />
+          </div>
+        </div>
+
+        <div className="min-h-0 border-l">
+          <AssistantPanel
+            history={history}
+            pending={
+              queryState.status === "searching"
+                ? {
+                    question: queryState.question,
+                    stage: queryState.stage,
+                    passages: queryState.passages,
+                  }
                 : undefined
             }
-            onUpload={handleUpload}
-          />
-        </section>
-
-        {showThread && (
-          <div ref={answerRef}>
-            <AnswerThread
-              history={history}
-              isSearching={queryState.status === "searching"}
-              searchingQuestion={
-                queryState.status === "searching" ? queryState.question : undefined
-              }
-              searchingStage={queryState.status === "searching" ? queryState.stage : undefined}
-            />
-          </div>
-        )}
-
-        {showQuery && (
-          <QueryInput
             question={question}
             onQuestionChange={setQuestion}
             onSubmit={handleQuery}
-            isLoading={queryState.status === "searching"}
             error={
               queryState.status === "error"
                 ? errorMessage(t, queryState.code, queryState.message)
                 : undefined
             }
-            showSuggestions={history.length === 0}
+            active={active}
+            onShowSource={showSource}
           />
-        )}
-
-        <Disclaimer />
-      </main>
-
-      <footer className="border-t px-4 py-5 text-center text-sm text-muted-foreground">
-        {t.footer}
-      </footer>
+        </div>
+      </div>
     </div>
   );
 }

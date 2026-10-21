@@ -133,6 +133,16 @@
   -webkit-box-decoration-break: clone;
 }
 
+/* Cited passage painted on the PDF text layer. The page itself stays white in
+   both themes, so the light-theme amber is used. */
+.textLayer mark.lb-pdf-highlight {
+  background: oklch(0.677 0.122 67 / 0.38);
+  color: transparent;
+  border-radius: 2px;
+  margin: -1px -2px;
+  padding: 1px 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

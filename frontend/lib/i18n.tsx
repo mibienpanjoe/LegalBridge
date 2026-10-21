@@ -56,6 +56,23 @@ const en = {
     `Found ${n} passage${n === 1 ? "" : "s"}${where ? ` in ${where}` : ""}`,
   stageGenerating: "Writing a cited answer…",
 
+  newDocument: "New document",
+  heroTitle: "Ask your legal document a question.",
+  heroBody:
+    "Upload a law, a code or a contract. Each answer points to the article it comes from, highlighted in the document itself.",
+  exampleLabel: "Example from the Burkina Faso Labour Code",
+  exampleQuestion: "Who does the labour code apply to?",
+  exampleAnswer: "To workers and employers carrying out their professional activity in Burkina Faso",
+  emptyThreadTitle: "Ask your first question",
+  emptyThreadBody: "Answers cite the passages they rely on. Select a citation to see it in the document.",
+  showInDocument: "Show in document",
+  viewerLabel: "PDF document",
+  viewerLoading: "Opening the document…",
+  viewerError: "This PDF can't be displayed here, but you can still ask questions about it.",
+  viewerPage: (n: number, total: number) => `Page ${n} of ${total}`,
+  viewerClose: "Back to answers",
+  viewerOpen: "View document",
+
   themeToLight: "Switch to light theme",
   themeToDark: "Switch to dark theme",
   localeSwitch: "Lire en français",
@@ -117,6 +134,24 @@ const fr: Dictionary = {
   stageSources: (n: number, where: string) =>
     `${n} passage${n === 1 ? "" : "s"} trouvé${n === 1 ? "" : "s"}${where ? ` : ${where}` : ""}`,
   stageGenerating: "Rédaction d’une réponse sourcée…",
+
+  newDocument: "Nouveau document",
+  heroTitle: "Posez vos questions à votre document juridique.",
+  heroBody:
+    "Téléversez une loi, un code ou un contrat. Chaque réponse renvoie à l’article dont elle est tirée, surligné dans le document lui-même.",
+  exampleLabel: "Exemple tiré du Code du travail du Burkina Faso",
+  exampleQuestion: "À qui s’applique le code du travail ?",
+  exampleAnswer: "Aux travailleurs et aux employeurs exerçant leur activité professionnelle au Burkina Faso",
+  emptyThreadTitle: "Posez votre première question",
+  emptyThreadBody:
+    "Les réponses citent les passages sur lesquels elles s’appuient. Sélectionnez une citation pour la voir dans le document.",
+  showInDocument: "Voir dans le document",
+  viewerLabel: "Document PDF",
+  viewerLoading: "Ouverture du document…",
+  viewerError: "Ce PDF ne peut pas être affiché ici, mais vous pouvez toujours lui poser des questions.",
+  viewerPage: (n: number, total: number) => `Page ${n} sur ${total}`,
+  viewerClose: "Retour aux réponses",
+  viewerOpen: "Voir le document",
 
   themeToLight: "Passer au thème clair",
   themeToDark: "Passer au thème sombre",
