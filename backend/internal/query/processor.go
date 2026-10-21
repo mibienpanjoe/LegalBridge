@@ -28,6 +28,28 @@ type Citation struct {
 	Section      string // article/section label, e.g. "Article 12"; may be empty
 }
 
+// StageName identifies a milestone of the query pipeline.
+type StageName string
+
+const (
+	StageSearching  StageName = "searching"  // embedding the question and searching the document
+	StageSources    StageName = "sources"    // passages selected; Stage.Passages is set
+	StageGenerating StageName = "generating" // waiting for the LLM to write the cited answer
+)
+
+// Stage is reported to a ProgressFunc as the pipeline advances.
+type Stage struct {
+	Name StageName
+	// Passages are the retrieved passages, numbered as in the RAG prompt.
+	// They are verbatim chunks, not citations: which ones the answer cites is
+	// only known once the response has been validated (INV-02).
+	Passages []Citation
+}
+
+// ProgressFunc receives pipeline stages while a query runs. It is called on
+// the querying goroutine and must not block for long.
+type ProgressFunc func(Stage)
+
 // QueryResult is returned by a successful Query call.
 type QueryResult struct {
 	Answer    string
@@ -71,6 +93,19 @@ func NewQueryProcessor(s store.Store, ec EmbeddingClient, lc LLMClient) *QueryPr
 //   - INV-02: validates that the LLM response contains at least one [N] citation;
 //     returns a fallback message if not.
 func (p *QueryProcessor) Query(ctx context.Context, documentID, question string) (*QueryResult, error) {
+	return p.QueryWithProgress(ctx, documentID, question, nil)
+}
+
+// QueryWithProgress is Query, reporting each pipeline stage to progress (which
+// may be nil). The answer itself is only returned once fully validated, so
+// streaming progress never weakens INV-02 or INV-06.
+func (p *QueryProcessor) QueryWithProgress(ctx context.Context, documentID, question string, progress ProgressFunc) (*QueryResult, error) {
+	report := func(s Stage) {
+		if progress != nil {
+			progress(s)
+		}
+	}
+
 	if strings.TrimSpace(question) == "" {
 		return nil, &EmptyQueryError{}
 	}
@@ -82,6 +117,8 @@ func (p *QueryProcessor) Query(ctx context.Context, documentID, question string)
 	if !exists {
 		return nil, &DocumentNotFoundError{}
 	}
+
+	report(Stage{Name: StageSearching})
 
 	// Embed the question using the same model as ingestion (INV-04).
 	queryVector, err := p.embeddingClient.Embed(ctx, question, config.EmbeddingModel)
@@ -110,6 +147,13 @@ func (p *QueryProcessor) Query(ctx context.Context, documentID, question string)
 		chunks = fuseRankings(candidates, ix, question, config.RetrievalTopK)
 	}
 
+	passages := make([]Citation, len(chunks))
+	for i, c := range chunks {
+		passages[i] = citationFor(i+1, c)
+	}
+	report(Stage{Name: StageSources, Passages: passages})
+	report(Stage{Name: StageGenerating})
+
 	systemPrompt := BuildRAGPrompt(chunks)
 	answer, err := p.llmClient.Complete(ctx, systemPrompt, question)
 	if err != nil {
@@ -123,6 +167,18 @@ func (p *QueryProcessor) Query(ctx context.Context, documentID, question string)
 	}
 
 	return &QueryResult{Answer: answer, Citations: citations}, nil
+}
+
+// citationFor builds the citation numbered index for chunk.
+func citationFor(index int, c store.Chunk) Citation {
+	return Citation{
+		Index:        index,
+		DocumentName: c.DocumentFilename,
+		Passage:      c.Content,
+		PageStart:    c.PageStart,
+		PageEnd:      c.PageEnd,
+		Section:      c.Section,
+	}
 }
 
 // lexicalIndex returns the document's BM25 index, building and caching it on
@@ -153,14 +209,7 @@ func parseCitations(answer string, chunks []store.Chunk) []Citation {
 			continue
 		}
 		seen[n] = true
-		citations = append(citations, Citation{
-			Index:        n,
-			DocumentName: chunks[n-1].DocumentFilename,
-			Passage:      chunks[n-1].Content,
-			PageStart:    chunks[n-1].PageStart,
-			PageEnd:      chunks[n-1].PageEnd,
-			Section:      chunks[n-1].Section,
-		})
+		citations = append(citations, citationFor(n, chunks[n-1]))
 	}
 
 	// Return citations ordered by index for deterministic output.

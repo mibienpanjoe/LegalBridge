@@ -8,8 +8,9 @@ import AnswerThread from "@/components/AnswerThread";
 import {
   ApiError,
   ingestDocument,
-  queryDocument,
+  queryDocumentStream,
   type Citation,
+  type QueryStage,
 } from "@/lib/api";
 
 // ─── State types ──────────────────────────────────────────────────────────────
@@ -28,7 +29,7 @@ type UploadState =
 
 type QueryState =
   | { status: "idle" }
-  | { status: "searching"; question: string }
+  | { status: "searching"; question: string; stage?: QueryStage }
   | { status: "error"; message: string };
 
 export type HistoryEntry = {
@@ -91,7 +92,9 @@ export default function Home() {
     }, 80);
 
     try {
-      const res = await queryDocument(documentId, q);
+      const res = await queryDocumentStream(documentId, q, (stage) =>
+        setQueryState({ status: "searching", question: q, stage })
+      );
       // Fix 3: push to history instead of replacing
       setHistory((prev) => [
         ...prev,
@@ -198,6 +201,9 @@ export default function Home() {
               isSearching={queryState.status === "searching"}
               searchingQuestion={
                 queryState.status === "searching" ? queryState.question : undefined
+              }
+              searchingStage={
+                queryState.status === "searching" ? queryState.stage : undefined
               }
             />
           </div>

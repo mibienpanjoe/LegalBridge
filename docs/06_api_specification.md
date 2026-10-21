@@ -144,6 +144,24 @@ Submit a natural language question about one ingested document. The system embed
 
 ---
 
+### POST /api/query/stream
+
+Same request body and pipeline as `POST /api/query`, but progress is reported as [Server-Sent Events](https://html.spec.whatwg.org/multipage/server-sent-events.html) (`Content-Type: text/event-stream`). Only **pipeline stages** are streamed, never LLM tokens: the answer is sent once, after citation validation (INV-02), so the stream never shows uncited text.
+
+**Events, in order:**
+
+| Event | Data | When |
+|-------|------|------|
+| `stage` | `{"stage":"searching"}` | Document found; embedding the question and searching |
+| `stage` | `{"stage":"sources","passages":[Citation…]}` | Passages selected for the prompt (numbered as in the prompt). These are retrieved passages, not yet citations |
+| `stage` | `{"stage":"generating"}` | Waiting for the LLM |
+| `answer` | Same body as the `POST /api/query` 200 response | Final, validated answer, or `no_results: true` |
+| `error` | Error Object (`{"error":{"code","message"}}`) | Any pipeline error; same codes as `POST /api/query` |
+
+A malformed body (missing/invalid `document_id`, empty `question`) is rejected with a plain `400 INVALID_REQUEST` JSON response before the stream starts. Clients read the body with `fetch` (`EventSource` cannot send a POST body).
+
+---
+
 ### GET /api/health
 
 Returns the health status of the backend and its database connection. Used by the deployment platform for liveness/readiness probes and by the frontend to check backend availability.
@@ -303,4 +321,5 @@ Content-Type: application/json
 |--------|------|-------------|------|--------------|
 | POST | `/api/ingest` | Ingest a PDF document | None | `multipart/form-data` |
 | POST | `/api/query` | Ask a question, get a cited answer | None | `application/json` |
+| POST | `/api/query/stream` | Same, with pipeline progress as Server-Sent Events | None | `application/json` → `text/event-stream` |
 | GET | `/api/health` | Backend + database health check | None | — |

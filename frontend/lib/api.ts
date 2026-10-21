@@ -92,3 +92,58 @@ export async function queryDocument(
   if (!res.ok) throw await parseError(res);
   return res.json();
 }
+
+export type QueryStage =
+  | { stage: "searching" }
+  | { stage: "sources"; passages: Citation[] }
+  | { stage: "generating" };
+
+/**
+ * Asks a question over `POST /api/query/stream`, reporting pipeline stages to
+ * `onStage` as Server-Sent Events arrive. Resolves with the validated answer.
+ */
+export async function queryDocumentStream(
+  documentId: string,
+  question: string,
+  onStage: (stage: QueryStage) => void,
+  signal?: AbortSignal
+): Promise<QueryResponse> {
+  const res = await fetch(`${API_BASE}/api/query/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ document_id: documentId, question }),
+    signal,
+  });
+  if (!res.ok || !res.body) throw await parseError(res);
+
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += value;
+
+    let sep: number;
+    while ((sep = buffer.indexOf("\n\n")) !== -1) {
+      const block = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+
+      let event = "message";
+      let data = "";
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event: ")) event = line.slice(7);
+        else if (line.startsWith("data: ")) data += line.slice(6);
+      }
+      if (!data) continue;
+
+      const payload = JSON.parse(data);
+      if (event === "stage") onStage(payload as QueryStage);
+      else if (event === "answer") return payload as QueryResponse;
+      else if (event === "error") {
+        const err = (payload as ApiErrorBody).error;
+        throw new ApiError(err?.message ?? "Query failed.", err?.code);
+      }
+    }
+  }
+  throw new ApiError("The answer stream ended unexpectedly.");
+}

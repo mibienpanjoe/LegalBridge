@@ -2,18 +2,24 @@
 
 import { useState } from "react";
 import type { HistoryEntry } from "@/app/page";
-import { citationLocation, type Citation } from "@/lib/api";
+import {
+  citationLocation,
+  type Citation,
+  type QueryStage,
+} from "@/lib/api";
 
 interface Props {
   history: HistoryEntry[];
   isSearching: boolean;
   searchingQuestion?: string;
+  searchingStage?: QueryStage;
 }
 
 export default function AnswerThread({
   history,
   isSearching,
   searchingQuestion,
+  searchingStage,
 }: Props) {
   return (
     <section aria-label="Conversation" className="space-y-6">
@@ -34,11 +40,23 @@ export default function AnswerThread({
             <div className="h-4 w-full rounded bg-[#E5E7EB]" />
             <div className="h-4 w-5/6 rounded bg-[#E5E7EB]" />
           </div>
-          <p className="mt-2 text-sm text-[#9CA3AF]">Searching relevant passages…</p>
+          <p className="mt-2 text-sm text-[#9CA3AF]">{stageLabel(searchingStage)}</p>
         </div>
       )}
     </section>
   );
+}
+
+function stageLabel(stage?: QueryStage): string {
+  if (stage?.stage === "generating") return "Writing a cited answer…";
+  if (stage?.stage === "sources") {
+    const where = stage.passages
+      .map((p) => p.section)
+      .filter(Boolean)
+      .join(", ");
+    return `Found ${stage.passages.length} passage${stage.passages.length !== 1 ? "s" : ""}${where ? ` in ${where}` : ""}`;
+  }
+  return "Searching relevant passages…";
 }
 
 // ─── Single Q&A card ──────────────────────────────────────────────────────────
