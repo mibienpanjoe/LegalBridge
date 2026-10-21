@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -150,6 +151,7 @@ func (h *APIHandler) handleIngest(c *gin.Context) {
 }
 
 func (h *APIHandler) handleIngestError(c *gin.Context, err error) {
+	log.Printf("ingest failed: %v", err)
 	var extractErr *ingester.ExtractionFailedError
 	var embedErr *ingester.EmbeddingUnavailableError
 	var dbErr *store.DatabaseUnavailableError
@@ -218,6 +220,10 @@ func (h *APIHandler) handleQuery(c *gin.Context) {
 }
 
 func (h *APIHandler) handleQueryError(c *gin.Context, err error) {
+	var noResults *query.NoResultsError
+	if !errors.As(err, &noResults) {
+		log.Printf("query failed: %v", err)
+	}
 	var emptyErr *query.EmptyQueryError
 	var noResultsErr *query.NoResultsError
 	var llmErr *query.LLMUnavailableError
