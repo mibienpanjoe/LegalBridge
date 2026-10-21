@@ -112,3 +112,24 @@ func TestSimilaritySearch_Threshold(t *testing.T) {
 		t.Errorf("expected no chunk above 0.99, got %d", len(got))
 	}
 }
+
+// TestChunkContents verifies that only the document's chunks are returned, in
+// chunk order, without embeddings.
+func TestChunkContents(t *testing.T) {
+	s := newTestStore(t)
+	doc := writeDoc(t, s, "doc.pdf", 0.1, 0.2, 0.3)
+	writeDoc(t, s, "other.pdf", 0.1)
+
+	got, err := s.ChunkContents(context.Background(), doc)
+	if err != nil {
+		t.Fatalf("chunk contents: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("expected 3 chunks, got %d", len(got))
+	}
+	for _, c := range got {
+		if c.ID == "" || c.Content != "doc.pdf" || c.Embedding != nil {
+			t.Errorf("unexpected chunk %+v", c)
+		}
+	}
+}

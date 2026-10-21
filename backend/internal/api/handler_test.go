@@ -43,6 +43,9 @@ func (f *fakeStore) WriteChunks(_ context.Context, _ string, _ []store.Chunk) er
 func (f *fakeStore) SimilaritySearch(_ context.Context, _ string, _ []float32, _ int, _ float64) ([]store.Chunk, error) {
 	return nil, nil
 }
+func (f *fakeStore) ChunkContents(_ context.Context, _ string) ([]store.Chunk, error) {
+	return nil, nil
+}
 func (f *fakeStore) Ping(_ context.Context) error { return f.pingErr }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────

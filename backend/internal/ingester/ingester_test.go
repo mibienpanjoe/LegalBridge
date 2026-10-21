@@ -47,6 +47,9 @@ func (m *mockStore) SimilaritySearch(_ context.Context, _ string, _ []float32, _
 	return nil, nil
 }
 
+func (m *mockStore) ChunkContents(_ context.Context, _ string) ([]store.Chunk, error) {
+	return nil, nil
+}
 func (m *mockStore) Ping(_ context.Context) error { return nil }
 
 // buildTestText returns a text of exactly wordCount unique words.

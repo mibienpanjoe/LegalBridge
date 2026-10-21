@@ -44,11 +44,20 @@ type QueryProcessor struct {
 	store           store.Store
 	embeddingClient EmbeddingClient
 	llmClient       LLMClient
+	lexical         *lexicalCache
 }
+
+// lexicalCacheSize is the number of documents whose BM25 index is kept in memory.
+const lexicalCacheSize = 64
 
 // NewQueryProcessor constructs a QueryProcessor with the given dependencies.
 func NewQueryProcessor(s store.Store, ec EmbeddingClient, lc LLMClient) *QueryProcessor {
-	return &QueryProcessor{store: s, embeddingClient: ec, llmClient: lc}
+	return &QueryProcessor{
+		store:           s,
+		embeddingClient: ec,
+		llmClient:       lc,
+		lexical:         newLexicalCache(lexicalCacheSize),
+	}
 }
 
 // Query runs the full RAG pipeline for the given question against a single
@@ -73,14 +82,24 @@ func (p *QueryProcessor) Query(ctx context.Context, documentID, question string)
 	}
 
 	// Retrieve the closest passages of this document above the threshold.
-	chunks, err := p.store.SimilaritySearch(ctx, documentID, queryVector, config.RetrievalTopK, config.MinSimilarity)
+	candidates, err := p.store.SimilaritySearch(ctx, documentID, queryVector, config.RetrievalCandidates, config.MinSimilarity)
 	if err != nil {
 		return nil, err
 	}
 
 	// INV-06: do not call the LLM when retrieval is empty.
-	if len(chunks) == 0 {
+	if len(candidates) == 0 {
 		return nil, &NoResultsError{}
+	}
+
+	// Hybrid rerank: promote candidates that share rare terms with the question.
+	chunks := candidates
+	if len(candidates) > config.RetrievalTopK {
+		ix, err := p.lexicalIndex(ctx, documentID)
+		if err != nil {
+			return nil, err
+		}
+		chunks = fuseRankings(candidates, ix, question, config.RetrievalTopK)
 	}
 
 	systemPrompt := BuildRAGPrompt(chunks)
@@ -96,6 +115,21 @@ func (p *QueryProcessor) Query(ctx context.Context, documentID, question string)
 	}
 
 	return &QueryResult{Answer: answer, Citations: citations}, nil
+}
+
+// lexicalIndex returns the document's BM25 index, building and caching it on
+// first use.
+func (p *QueryProcessor) lexicalIndex(ctx context.Context, documentID string) (*lexicalIndex, error) {
+	if ix, ok := p.lexical.get(documentID); ok {
+		return ix, nil
+	}
+	contents, err := p.store.ChunkContents(ctx, documentID)
+	if err != nil {
+		return nil, err
+	}
+	ix := newLexicalIndex(contents)
+	p.lexical.put(documentID, ix)
+	return ix, nil
 }
 
 // parseCitations extracts [N] references from the LLM answer and maps each
