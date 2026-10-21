@@ -31,9 +31,17 @@ func (f *fakeIngestor) Ingest(_ context.Context, _ []byte, _ string) (*ingester.
 type fakeQuerySvc struct {
 	result *query.QueryResult
 	err    error
+	stages []query.Stage // reported by QueryWithProgress before returning
 }
 
 func (f *fakeQuerySvc) Query(_ context.Context, _, _ string) (*query.QueryResult, error) {
+	return f.result, f.err
+}
+
+func (f *fakeQuerySvc) QueryWithProgress(_ context.Context, _, _ string, progress query.ProgressFunc) (*query.QueryResult, error) {
+	for _, s := range f.stages {
+		progress(s)
+	}
 	return f.result, f.err
 }
 
@@ -244,5 +252,91 @@ func TestHandleQuery_DocumentNotFound(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "DOCUMENT_NOT_FOUND") {
 		t.Errorf("expected DOCUMENT_NOT_FOUND code, got %s", w.Body.String())
+	}
+}
+
+// sseEvents parses a text/event-stream body into (event, data) pairs.
+func sseEvents(t *testing.T, body string) [][2]string {
+	t.Helper()
+	var events [][2]string
+	for _, block := range strings.Split(strings.TrimSpace(body), "\n\n") {
+		var ev, data string
+		for _, line := range strings.Split(block, "\n") {
+			if v, ok := strings.CutPrefix(line, "event: "); ok {
+				ev = v
+			} else if v, ok := strings.CutPrefix(line, "data: "); ok {
+				data = v
+			}
+		}
+		events = append(events, [2]string{ev, data})
+	}
+	return events
+}
+
+func postStream(t *testing.T, svc *fakeQuerySvc, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	r := newTestRouter(NewAPIHandler(&fakeIngestor{}, svc, &fakeStore{}))
+	req := httptest.NewRequest(http.MethodPost, "/api/query/stream", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+const streamBody = `{"document_id":"3f4a7b2c-1e6d-4a89-b3c2-9d1e5f7a8b0c","question":"Durée de l'essai ?"}`
+
+// TestHandleQueryStream_Stages verifies the event sequence of a successful
+// streamed query: stages in order, then the validated answer.
+func TestHandleQueryStream_Stages(t *testing.T) {
+	svc := &fakeQuerySvc{
+		stages: []query.Stage{
+			{Name: query.StageSearching},
+			{Name: query.StageSources, Passages: []query.Citation{{Index: 1, Passage: "Article 42 : …", Section: "Article 42"}}},
+			{Name: query.StageGenerating},
+		},
+		result: &query.QueryResult{Answer: "Un mois [1].", Citations: []query.Citation{{Index: 1, Passage: "Article 42 : …"}}},
+	}
+	w := postStream(t, svc, streamBody)
+
+	if ct := w.Header().Get("Content-Type"); ct != "text/event-stream" {
+		t.Fatalf("expected text/event-stream, got %q", ct)
+	}
+	events := sseEvents(t, w.Body.String())
+	want := []string{"stage", "stage", "stage", "answer"}
+	if len(events) != len(want) {
+		t.Fatalf("expected %d events, got %d: %v", len(want), len(events), events)
+	}
+	for i, ev := range events {
+		if ev[0] != want[i] {
+			t.Errorf("event %d: got %q, want %q", i, ev[0], want[i])
+		}
+	}
+	if !strings.Contains(events[1][1], `"stage":"sources"`) || !strings.Contains(events[1][1], `"section":"Article 42"`) {
+		t.Errorf("sources stage missing passages: %s", events[1][1])
+	}
+	var answer queryResponse
+	if err := json.Unmarshal([]byte(events[3][1]), &answer); err != nil || answer.Answer != "Un mois [1]." || len(answer.Citations) != 1 {
+		t.Errorf("unexpected answer event %s (%v)", events[3][1], err)
+	}
+}
+
+// TestHandleQueryStream_Errors verifies that pipeline errors become an error
+// event carrying the API error code, and that no_results is an answer event.
+func TestHandleQueryStream_Errors(t *testing.T) {
+	w := postStream(t, &fakeQuerySvc{err: &query.LLMUnavailableError{Reason: "timeout"}}, streamBody)
+	events := sseEvents(t, w.Body.String())
+	if len(events) != 1 || events[0][0] != "error" || !strings.Contains(events[0][1], "LLM_UNAVAILABLE") {
+		t.Errorf("expected one LLM_UNAVAILABLE error event, got %v", events)
+	}
+
+	w = postStream(t, &fakeQuerySvc{err: &query.NoResultsError{}}, streamBody)
+	events = sseEvents(t, w.Body.String())
+	if len(events) != 1 || events[0][0] != "answer" || !strings.Contains(events[0][1], `"no_results":true`) {
+		t.Errorf("expected one no_results answer event, got %v", events)
+	}
+
+	w = postStream(t, &fakeQuerySvc{}, `{"question":"no document"}`)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 before streaming for an invalid body, got %d", w.Code)
 	}
 }

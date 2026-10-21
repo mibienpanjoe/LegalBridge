@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -246,5 +247,28 @@ func TestQuery_DocumentNotFound(t *testing.T) {
 	}
 	if calls != 0 {
 		t.Errorf("LLM called %d time(s) for a missing document", calls)
+	}
+}
+
+// TestQueryWithProgress_Stages verifies the reported stage order and that the
+// sources stage carries the passages, numbered as in the prompt.
+func TestQueryWithProgress_Stages(t *testing.T) {
+	fs := &fakeStore{chunks: []store.Chunk{{Content: "Article 42 : un mois.", Section: "Article 42", DocumentFilename: "code.pdf"}}}
+	p := NewQueryProcessor(fs, &fakeEmbedder{}, &fakeLLM{response: "Un mois [1]."})
+
+	var got []Stage
+	if _, err := p.QueryWithProgress(context.Background(), testDocID, "Durée ?", func(s Stage) { got = append(got, s) }); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	names := []StageName{}
+	for _, s := range got {
+		names = append(names, s.Name)
+	}
+	want := []StageName{StageSearching, StageSources, StageGenerating}
+	if fmt.Sprint(names) != fmt.Sprint(want) {
+		t.Fatalf("stages %v, want %v", names, want)
+	}
+	if len(got[1].Passages) != 1 || got[1].Passages[0].Index != 1 || got[1].Passages[0].Section != "Article 42" {
+		t.Errorf("unexpected sources passages %+v", got[1].Passages)
 	}
 }

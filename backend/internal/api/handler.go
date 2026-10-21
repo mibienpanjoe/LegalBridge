@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -24,6 +26,7 @@ type ingestionService interface {
 // queryService is satisfied by *query.QueryProcessor.
 type queryService interface {
 	Query(ctx context.Context, documentID, question string) (*query.QueryResult, error)
+	QueryWithProgress(ctx context.Context, documentID, question string, progress query.ProgressFunc) (*query.QueryResult, error)
 }
 
 // ─── response types ───────────────────────────────────────────────────────────
@@ -83,6 +86,7 @@ func (h *APIHandler) RegisterRoutes(r *gin.Engine) {
 	api := r.Group("/api")
 	api.POST("/ingest", h.handleIngest)
 	api.POST("/query", h.handleQuery)
+	api.POST("/query/stream", h.handleQueryStream)
 	api.GET("/health", h.handleHealth)
 }
 
@@ -209,9 +213,17 @@ func (h *APIHandler) handleQuery(c *gin.Context) {
 		return
 	}
 
-	citations := make([]citationResponse, len(result.Citations))
-	for i, ci := range result.Citations {
-		citations[i] = citationResponse{
+	c.JSON(http.StatusOK, queryResponse{
+		Answer:    result.Answer,
+		Citations: toCitationResponses(result.Citations),
+		NoResults: false,
+	})
+}
+
+func toCitationResponses(cs []query.Citation) []citationResponse {
+	out := make([]citationResponse, len(cs))
+	for i, ci := range cs {
+		out[i] = citationResponse{
 			Index:        ci.Index,
 			DocumentName: ci.DocumentName,
 			Passage:      ci.Passage,
@@ -220,64 +232,125 @@ func (h *APIHandler) handleQuery(c *gin.Context) {
 			Section:      ci.Section,
 		}
 	}
+	return out
+}
 
-	c.JSON(http.StatusOK, queryResponse{
+// ─── handleQueryStream ────────────────────────────────────────────────────────
+
+type stageEvent struct {
+	Stage    query.StageName    `json:"stage"`
+	Passages []citationResponse `json:"passages,omitempty"`
+}
+
+// handleQueryStream runs the same pipeline as handleQuery but reports progress
+// as Server-Sent Events:
+//
+//	event: stage   data: {"stage":"searching"}
+//	event: stage   data: {"stage":"sources","passages":[...]}
+//	event: stage   data: {"stage":"generating"}
+//	event: answer  data: <queryResponse>     (also used for no_results)
+//	event: error   data: <errorEnvelope>
+//
+// Only pipeline stages are streamed, never LLM tokens, so the answer is sent
+// once, after citation validation (INV-02).
+func (h *APIHandler) handleQueryStream(c *gin.Context) {
+	var req queryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorEnvelope{Error: apiError{
+			Code:    "INVALID_REQUEST",
+			Message: "request body must be JSON with a valid 'document_id' and a non-empty 'question'",
+		}})
+		return
+	}
+
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no") // disable proxy buffering
+	c.Status(http.StatusOK)
+
+	send := func(event string, v any) {
+		data, _ := json.Marshal(v)
+		fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", event, data)
+		c.Writer.Flush()
+	}
+
+	result, err := h.querySvc.QueryWithProgress(c.Request.Context(), req.DocumentID, req.Question,
+		func(s query.Stage) {
+			send("stage", stageEvent{Stage: s.Name, Passages: toCitationResponses(s.Passages)})
+		})
+	if err != nil {
+		_, body := queryErrorResponse(err)
+		if answer, ok := body.(queryResponse); ok {
+			send("answer", answer)
+		} else {
+			send("error", body)
+		}
+		return
+	}
+
+	send("answer", queryResponse{
 		Answer:    result.Answer,
-		Citations: citations,
+		Citations: toCitationResponses(result.Citations),
 		NoResults: false,
 	})
 }
 
 func (h *APIHandler) handleQueryError(c *gin.Context, err error) {
-	var noResults *query.NoResultsError
-	if !errors.As(err, &noResults) {
+	c.JSON(queryErrorResponse(err))
+}
+
+// queryErrorResponse maps a query pipeline error to its HTTP status and body:
+// an errorEnvelope, or a queryResponse with no_results for NoResultsError.
+func queryErrorResponse(err error) (int, any) {
+	var noResultsErr *query.NoResultsError
+	if !errors.As(err, &noResultsErr) {
 		log.Printf("query failed: %v", err)
 	}
 	var emptyErr *query.EmptyQueryError
 	var notFoundErr *query.DocumentNotFoundError
-	var noResultsErr *query.NoResultsError
 	var llmErr *query.LLMUnavailableError
 	var embedErr *ingester.EmbeddingUnavailableError
 	var dbErr *store.DatabaseUnavailableError
 
 	switch {
 	case errors.As(err, &emptyErr):
-		c.JSON(http.StatusBadRequest, errorEnvelope{Error: apiError{
+		return http.StatusBadRequest, errorEnvelope{Error: apiError{
 			Code:    "EMPTY_QUERY",
 			Message: emptyErr.Error(),
-		}})
+		}}
 	case errors.As(err, &notFoundErr):
-		c.JSON(http.StatusNotFound, errorEnvelope{Error: apiError{
+		return http.StatusNotFound, errorEnvelope{Error: apiError{
 			Code:    "DOCUMENT_NOT_FOUND",
 			Message: "this document is no longer available — please upload it again",
-		}})
+		}}
 	case errors.As(err, &noResultsErr):
 		// INV-06 result: 200 with no_results flag, not an error status.
-		c.JSON(http.StatusOK, queryResponse{
+		return http.StatusOK, queryResponse{
 			Answer:    "",
 			Citations: []citationResponse{},
 			NoResults: true,
-		})
+		}
 	case errors.As(err, &llmErr):
-		c.JSON(http.StatusServiceUnavailable, errorEnvelope{Error: apiError{
+		return http.StatusServiceUnavailable, errorEnvelope{Error: apiError{
 			Code:    "LLM_UNAVAILABLE",
 			Message: "LLM service is temporarily unavailable",
-		}})
+		}}
 	case errors.As(err, &embedErr):
-		c.JSON(http.StatusServiceUnavailable, errorEnvelope{Error: apiError{
+		return http.StatusServiceUnavailable, errorEnvelope{Error: apiError{
 			Code:    "EMBEDDING_UNAVAILABLE",
 			Message: "embedding service is temporarily unavailable",
-		}})
+		}}
 	case errors.As(err, &dbErr):
-		c.JSON(http.StatusServiceUnavailable, errorEnvelope{Error: apiError{
+		return http.StatusServiceUnavailable, errorEnvelope{Error: apiError{
 			Code:    "DATABASE_UNAVAILABLE",
 			Message: "database is temporarily unavailable",
-		}})
+		}}
 	default:
-		c.JSON(http.StatusInternalServerError, errorEnvelope{Error: apiError{
+		return http.StatusInternalServerError, errorEnvelope{Error: apiError{
 			Code:    "INTERNAL_ERROR",
 			Message: "an unexpected error occurred",
-		}})
+		}}
 	}
 }
 
