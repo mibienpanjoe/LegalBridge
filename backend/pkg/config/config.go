@@ -18,6 +18,10 @@ const MinSimilarity = 0.45
 // RetrievalTopK is the maximum number of passages included in the RAG prompt.
 const RetrievalTopK = 3
 
+// RetrievalCandidates is how many passages above MinSimilarity are reranked
+// by hybrid (vector + BM25) fusion before keeping the best RetrievalTopK.
+const RetrievalCandidates = 20
+
 // Config holds all runtime configuration loaded from environment variables.
 type Config struct {
 	DatabaseURL string

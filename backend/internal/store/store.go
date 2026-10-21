@@ -37,6 +37,10 @@ type Store interface {
 	// nearest-first. Chunks of other documents are never returned.
 	SimilaritySearch(ctx context.Context, documentID string, vector []float32, topK int, minSimilarity float64) ([]Chunk, error)
 
+	// ChunkContents returns the ID and content of every chunk of a document,
+	// ordered by chunk index. Embeddings are not loaded.
+	ChunkContents(ctx context.Context, documentID string) ([]Chunk, error)
+
 	// Ping checks that the database connection is healthy.
 	Ping(ctx context.Context) error
 }

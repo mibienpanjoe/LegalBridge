@@ -51,8 +51,9 @@ At MVP scale — one document, a few hundred chunks — pgvector running inside 
 
 **Key behaviors:**
 1. Call `EmbeddingClient.Embed(question, config.EmbeddingModel)` → `queryVector`
-2. Call `Store.SimilaritySearch(documentID, queryVector, config.RetrievalTopK, config.MinSimilarity)` → `[]Chunk` (only chunks of that document with cosine similarity ≥ 0.45)
-3. **If `len(chunks) == 0`**: return `NoResultsError` immediately without calling the LLM (INV-06)
+2. Call `Store.SimilaritySearch(documentID, queryVector, config.RetrievalCandidates, config.MinSimilarity)` → up to 20 candidates (only chunks of that document with cosine similarity ≥ 0.45)
+3. **If `len(candidates) == 0`**: return `NoResultsError` immediately without calling the LLM (INV-06)
+3b. **Hybrid rerank**: score candidates with BM25 over the document's chunks (index built from `Store.ChunkContents` and cached per document) and fuse vector and lexical ranks with reciprocal rank fusion (k = 60; lexical credit only for scores ≥ 50% of the best). Keep the top `config.RetrievalTopK` (3). Only candidates above the threshold are reranked, so lexical matching never admits a passage the embedding rejected.
 4. Construct RAG prompt (see Prompt Template below)
 5. Call Groq API: `POST /openai/v1/chat/completions` with the constructed prompt
 6. Validate response: check that `Citations` field is non-empty (INV-02)
@@ -99,6 +100,7 @@ type Store interface {
     WriteDocument(ctx, filename string) (documentID string, err error)
     WriteChunks(ctx, documentID string, chunks []Chunk) error
     SimilaritySearch(ctx context.Context, documentID string, vector []float32, topK int, minSimilarity float64) ([]Chunk, error)
+    ChunkContents(ctx context.Context, documentID string) ([]Chunk, error) // ID + content, for the BM25 index
     Ping(ctx context.Context) error
 }
 ```
@@ -232,8 +234,9 @@ APIHandler.handleQuery()
 QueryProcessor.Query(documentID, question)
     ├─► EmbeddingClient.Embed(question, EmbeddingModel) → queryVector   (~200ms)
     │       └─► failure → EmbeddingUnavailableError
-    ├─► Store.SimilaritySearch(documentID, queryVector, topK=3, minSimilarity=0.45) → []Chunk  (~100ms)
+    ├─► Store.SimilaritySearch(documentID, queryVector, topK=20, minSimilarity=0.45) → candidates  (~100ms)
     │       └─► empty → NoResultsError (early exit, no LLM call) ← INV-06
+    ├─► fuseRankings(candidates, BM25 index, question) → top 3     (index cached per document)
     ├─► BuildRAGPrompt(question, chunks) → prompt
     ├─► Groq.Complete(prompt) → rawResponse                     (~3-4s)
     │       └─► timeout/error → LLMUnavailableError

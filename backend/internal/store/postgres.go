@@ -144,6 +144,32 @@ func (s *PostgresStore) SimilaritySearch(ctx context.Context, documentID string,
 	return chunks, nil
 }
 
+// ChunkContents returns the ID and content of every chunk of documentID,
+// ordered by chunk index. Embeddings are not loaded.
+func (s *PostgresStore) ChunkContents(ctx context.Context, documentID string) ([]Chunk, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, content FROM chunks WHERE document_id = $1 ORDER BY chunk_index`,
+		documentID,
+	)
+	if err != nil {
+		return nil, &DatabaseUnavailableError{Cause: err}
+	}
+	defer rows.Close()
+
+	var chunks []Chunk
+	for rows.Next() {
+		c := Chunk{DocumentID: documentID}
+		if err := rows.Scan(&c.ID, &c.Content); err != nil {
+			return nil, &DatabaseUnavailableError{Cause: err}
+		}
+		chunks = append(chunks, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, &DatabaseUnavailableError{Cause: err}
+	}
+	return chunks, nil
+}
+
 // Ping verifies that the database connection is alive.
 func (s *PostgresStore) Ping(ctx context.Context) error {
 	if err := s.pool.Ping(ctx); err != nil {

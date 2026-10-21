@@ -21,6 +21,8 @@ type fakeStore struct {
 	// recorded arguments of the last SimilaritySearch call
 	gotDocID         string
 	gotMinSimilarity float64
+
+	contentsCalls int // number of ChunkContents calls
 }
 
 func (f *fakeStore) WriteDocument(_ context.Context, _ string) (string, error) { return "", nil }
@@ -31,6 +33,10 @@ func (f *fakeStore) SimilaritySearch(_ context.Context, documentID string, _ []f
 	f.gotDocID = documentID
 	f.gotMinSimilarity = minSimilarity
 	return f.chunks, f.err
+}
+func (f *fakeStore) ChunkContents(_ context.Context, _ string) ([]store.Chunk, error) {
+	f.contentsCalls++
+	return f.chunks, nil
 }
 func (f *fakeStore) Ping(_ context.Context) error { return nil }
 
