@@ -52,7 +52,7 @@ Answer: "According to the Ghana Companies Act, a foreign company must register
 | Layer | Technology |
 |-------|-----------|
 | Backend | Go 1.22+ · Gin framework |
-| Frontend | Next.js 14 · TypeScript · shadcn/ui · Tailwind CSS |
+| Frontend | Next.js 16 · TypeScript · shadcn/ui (Base UI) · Tailwind CSS 4 · Geist + Source Serif 4 · FR/EN |
 | Vector database | PostgreSQL 16 + pgvector |
 | Embeddings | `BAAI/bge-m3` — multilingual, open-source (Apache 2.0) |
 | LLM | `llama-3.3-70b-versatile` via Groq (free tier) |

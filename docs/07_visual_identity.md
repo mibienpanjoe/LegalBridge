@@ -1,5 +1,5 @@
 # LegalBridge — Visual Identity Guide
-Version: v1.0, 2026-03-31
+Version: v2.0, 2026-10-21 (v1.0, 2026-03-31)
 
 ## Brand Essence
 
@@ -18,427 +18,129 @@ Version: v1.0, 2026-03-31
 
 ---
 
+## Signature: the amber highlighter
+
+One element carries the identity: **cited law is marked with an amber highlighter**. Citation chips in an answer and the numbers on source passages use a soft amber band behind the text, like a marker pen on a printed statute (`highlighter` utility in `app/globals.css`). Everything around it stays quiet (navy ink on cool paper-white, thin rules, no drop shadows) so that the marks are what the eye follows from answer to source.
+
+---
+
 ## Color System
 
-### Primary Palette
+Tokens are defined in OKLCH in `app/globals.css` and mapped onto the shadcn variable names (`--background`, `--primary`, …), so shadcn/Base UI components inherit the brand. Never hard-code hex values in components; use the Tailwind token classes (`bg-background`, `text-muted-foreground`, `bg-highlight-soft`, `text-highlight-ink`…).
 
-| Token | Name | Hex | Use |
-|-------|------|-----|-----|
-| `--color-primary` | Deep Navy | `#1B3A5C` | Primary actions, header background, active states |
-| `--color-primary-hover` | Navy Hover | `#162F4A` | Hover state on primary elements |
-| `--color-accent` | Warm Amber | `#C9873A` | Highlights, call-to-action accents, citation markers |
-| `--color-accent-hover` | Amber Hover | `#B0732E` | Hover on accent elements |
+### Light
 
-**Rationale:** Deep Navy communicates legal authority and trust — the color of formal documents, court robes, and institutional credibility. Warm Amber draws from West African craft and textile heritage: gold, kente, and terracotta. Together they project trustworthy professionalism with cultural warmth.
+| Token | Name | Hex | OKLCH | Use |
+|-------|------|-----|-------|-----|
+| `--background` | Paper | `#F6F7F9` | `0.976 0.003 264.5` | Page background |
+| `--card` | Page | `#FFFFFF` | `1 0 0` | Cards, document, inputs |
+| `--foreground` | Ink | `#14263D` | `0.266 0.050 255.2` | Body text |
+| `--primary` | Navy | `#1B3A5C` | `0.343 0.070 252.4` | Wordmark, primary actions, focus ring |
+| `--muted-foreground` | Slate | `#5B6675` | `0.506 0.027 256.2` | Secondary text (5.4:1 on paper) |
+| `--border` | Rule | `#DDE1E7` | `0.908 0.009 258.3` | Card outlines, dividers |
+| `--highlight` | Amber | `#C9873A` | `0.677 0.122 67.0` | Highlighter fills and drop-zone hover. **Never text** (3.0:1) |
+| `--highlight-soft` | Amber 28% | — | amber / 0.28 | Highlighter band |
+| `--highlight-ink` | Amber ink | `#8A5A1F` | `0.509 0.096 67.6` | Amber text: citation numbers, links in the upload zone (5.9:1) |
+| `--destructive` | Error | `#B42318` | `0.500 0.182 29.5` | Error text |
 
-### Surface Palette
+### Dark
 
-| Token | Name | Hex | Use |
-|-------|------|-----|-----|
-| `--color-background` | Parchment | `#F7F8FA` | Page backgrounds |
-| `--color-surface` | White | `#FFFFFF` | Cards, panels, input fields |
-| `--color-surface-secondary` | Light Gray | `#F1F3F5` | Inactive tabs, secondary panels |
-| `--color-border` | Slate Border | `#D1D5DB` | Input borders, card outlines |
+Dark mode follows the system preference, can be overridden with the header toggle (saved in `localStorage`), and is applied before first paint by an inline script, so there's no flash.
 
-### Semantic Colors
+| Token | Hex | OKLCH |
+|-------|-----|-------|
+| `--background` (Night) | `#0E1726` | `0.204 0.033 260.3` |
+| `--card` | `#152238` | `0.252 0.046 260.5` |
+| `--foreground` | `#E6EAF0` | `0.936 0.009 258.3` |
+| `--primary` (Navy, lifted) | `#8FB3DC` | `0.755 0.071 252.0` |
+| `--muted-foreground` | `#9AA6B6` | `0.721 0.027 255.6` |
+| `--border` | `#24324A` | `0.316 0.047 260.8` |
+| `--highlight` / `--highlight-ink` | `#E0A458` | `0.761 0.117 70.9` |
 
-| Token | Hex | Use |
-|-------|-----|-----|
-| `--color-success` | `#16A34A` | Successful ingestion, upload confirmation |
-| `--color-success-bg` | `#F0FDF4` | Success state backgrounds |
-| `--color-warning` | `#D97706` | Partial results, degraded service warnings |
-| `--color-warning-bg` | `#FFFBEB` | Warning state backgrounds |
-| `--color-error` | `#DC2626` | Upload failures, API errors |
-| `--color-error-bg` | `#FEF2F2` | Error state backgrounds |
-| `--color-info` | `#2563EB` | Informational tooltips, inline help |
-
-### Neutral Scale
-
-| Token | Hex | Use |
-|-------|-----|-----|
-| `--color-text-primary` | `#111827` | Body text, headings |
-| `--color-text-secondary` | `#4B5563` | Supporting text, labels |
-| `--color-text-muted` | `#9CA3AF` | Placeholders, disabled states |
-| `--color-text-inverse` | `#FFFFFF` | Text on dark backgrounds |
-
-### CSS Custom Properties
-
-```css
-:root {
-  --color-primary:           #1B3A5C;
-  --color-primary-hover:     #162F4A;
-  --color-accent:            #C9873A;
-  --color-accent-hover:      #B0732E;
-  --color-background:        #F7F8FA;
-  --color-surface:           #FFFFFF;
-  --color-surface-secondary: #F1F3F5;
-  --color-border:            #D1D5DB;
-  --color-success:           #16A34A;
-  --color-success-bg:        #F0FDF4;
-  --color-warning:           #D97706;
-  --color-warning-bg:        #FFFBEB;
-  --color-error:             #DC2626;
-  --color-error-bg:          #FEF2F2;
-  --color-info:              #2563EB;
-  --color-text-primary:      #111827;
-  --color-text-secondary:    #4B5563;
-  --color-text-muted:        #9CA3AF;
-  --color-text-inverse:      #FFFFFF;
-}
-```
+**Rationale:** Navy carries the authority of formal documents; amber draws on West African gold and textile heritage and works as a highlighter. The paper is cool, not cream, to stay clear of the generic warm-cream "AI" look.
 
 ---
 
 ## Typography
 
-| Role | Font | Weights | Use |
-|------|------|---------|-----|
-| Display | Playfair Display | 600, 700 | Hero text, product name, page titles |
-| Body | Inter | 400, 500, 600 | All body copy, labels, UI text |
-| Monospace | JetBrains Mono | 400 | Citation passage text, document excerpts |
+| Role | Typeface | Where |
+|------|----------|-------|
+| Interface | **Geist** (`--font-sans`) | Labels, buttons, inputs, metadata |
+| Legal reading | **Source Serif 4** with optical sizes (`--font-serif`) | Answers, quoted passages, the wordmark |
 
-**Rationale:** Playfair Display carries the gravitas of legal publishing — serif typefaces signal seriousness, authority, and durability. Inter is maximally legible in UI contexts at any screen size. JetBrains Mono distinguishes citation text from synthesized content, reinforcing that citations are source material, not AI-generated.
+Both load through `next/font/google` with `latin-ext` (for names and places with extended Latin characters). Answers and passages are set in a serif because they should read like a legal memo, not a chat log. Monospace is not used. JetBrains Mono, Inter and Playfair Display from v1.0 have been removed.
 
-**Import (Google Fonts):**
-```html
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
-```
+### Type scale
 
-### Type Scale
+| Element | Font | Size / line height |
+|---------|------|--------------------|
+| Wordmark | Source Serif 4, 600 | 20px |
+| Answer body | Source Serif 4, 400 | 17px / 1.7, max 68ch |
+| Quoted passage | Source Serif 4, 400 | 15px / 1.65 |
+| Question, body UI | Geist, 500 / 400 | 15px |
+| Section heading, metadata | Geist, 500 / 400 | 14px / 12px |
 
-| Name | Size | Line Height | Letter Spacing | Use |
-|------|------|-------------|----------------|-----|
-| `text-xs` | 12px | 1.4 | 0.02em | Labels, badges, captions |
-| `text-sm` | 14px | 1.5 | 0 | Secondary UI text, helper text |
-| `text-base` | 16px | 1.6 | 0 | Body copy, form labels |
-| `text-lg` | 18px | 1.5 | 0 | Section subheadings |
-| `text-xl` | 20px | 1.4 | -0.01em | Page section headers |
-| `text-2xl` | 24px | 1.3 | -0.01em | Card titles, panel headers |
-| `text-4xl` | 36px | 1.2 | -0.02em | Page title (Display font) |
-| `text-5xl` | 48px | 1.1 | -0.02em | Hero headline (Display font) |
+**Rules:** sentence case everywhere; no all-caps tracked labels; headings are plain muted text, not eyebrows.
 
 ---
 
-## Spacing & Layout
+## Components
 
-**Base unit:** 4px
-**Spacing scale:** 4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96px
-
-**Responsive breakpoints:**
-| Name | Min width | Use |
-|------|-----------|-----|
-| `sm` | 640px | Mobile landscape |
-| `md` | 768px | Tablet |
-| `lg` | 1024px | Desktop |
-| `xl` | 1280px | Wide desktop |
-
-**Max content width:** 1024px, centered
-**Page horizontal padding:** 16px (mobile), 24px (tablet), 48px (desktop)
+- **Citation chip**: the number only (`1`, not `[1]`), highlighter band, amber-ink text, 13px Geist semibold. Clicking scrolls to the source passage.
+- **Source passage**: card with a caption (`1` highlighter chip + "Article 42–44, p. 14, code.pdf") and the verbatim passage in serif. Line breaks are preserved; passages longer than 280 characters collapse with "Show the full passage".
+- **Upload zone**: dashed rule on the page colour; amber border on hover/drag. Once loaded, it becomes a one-line card with the file name, passage count, deletion time and "Replace".
+- **Composer**: one bordered field holding the textarea and a 44px navy send button. Enter sends, Shift+Enter adds a line. Suggestions appear as pills only before the first question.
+- **Progress**: the streamed pipeline stage replaces the generic loading text ("Searching the document…" → "Found 2 passages: Article 42–44, Article 45–47" → "Writing a cited answer…").
+- **Legal disclaimer (BR-01)**: a quiet line with a scales icon, **always visible and not dismissible**, under the composer.
 
 ---
 
-## Component Styling
+## Motion
 
-### Buttons
-
-**Primary:**
-```
-Background: #1B3A5C
-Text: #FFFFFF, 14px Inter 500
-Border radius: 8px
-Padding: 10px 20px
-Hover: background #162F4A, translateY(-1px), box-shadow 0 4px 12px rgba(27, 58, 92, 0.3)
-Active: background #112540, translateY(0)
-Focus: box-shadow 0 0 0 3px rgba(27, 58, 92, 0.25)
-Disabled: background #9CA3AF, cursor not-allowed
-```
-
-**Accent (CTA):**
-```
-Background: #C9873A
-Text: #FFFFFF, 14px Inter 500
-Border radius: 8px
-Padding: 10px 20px
-Hover: background #B0732E, translateY(-1px)
-```
-
-**Secondary (Outline):**
-```
-Background: transparent
-Border: 1.5px solid #1B3A5C
-Text: #1B3A5C, 14px Inter 500
-Border radius: 8px
-Padding: 10px 20px
-Hover: background rgba(27, 58, 92, 0.06)
-```
-
-**Ghost:**
-```
-Background: transparent
-Text: #4B5563, 14px Inter 500
-No border
-Hover: background #F1F3F5
-```
-
-**Destructive:**
-```
-Background: #DC2626
-Text: #FFFFFF
-Hover: background #B91C1C
-```
+Motion only answers user actions: the answer fades in (300ms) when it arrives, buttons and borders change colour on hover (150ms). No scroll-triggered or decorative animation. `prefers-reduced-motion` disables all of it, including smooth scrolling.
 
 ---
 
-### Cards
+## Page Layout
+
+Single column, max 768px, left-aligned:
 
 ```
-Background: #FFFFFF
-Border: 1px solid #D1D5DB
-Border radius: 12px
-Padding: 24px
-Box shadow: 0 1px 3px rgba(0, 0, 0, 0.08)
-Hover (interactive cards): box-shadow 0 4px 12px rgba(0, 0, 0, 0.12), translateY(-1px)
-```
-
----
-
-### Citation Block
-
-The citation block is the most distinctive component — it must visually communicate "this is source material, not AI synthesis."
-
-```
-Background: #F7F8FA
-Border-left: 4px solid #C9873A (Warm Amber — signals provenance)
-Border radius: 0 8px 8px 0
-Padding: 16px
-Margin-top: 12px
-
-Citation number badge:
-  Background: #C9873A
-  Text: #FFFFFF, 11px Inter 600
-  Border radius: 4px
-  Padding: 2px 7px
-  Margin-bottom: 8px
-
-Passage text:
-  Font: JetBrains Mono 13px
-  Color: #374151
-  Line height: 1.6
-
-Document label:
-  Font: Inter 11px, 500
-  Color: #9CA3AF
-  Margin-top: 8px
-```
-
----
-
-### Document Upload Zone
-
-```
-Border: 2px dashed #D1D5DB
-Border radius: 12px
-Padding: 40px
-Background: #F7F8FA
-Text-align: center
-
-Active (drag-over):
-  Border-color: #C9873A
-  Background: rgba(201, 135, 58, 0.05)
-
-Accepted:
-  Border-color: #16A34A
-  Background: #F0FDF4
-
-Rejected:
-  Border-color: #DC2626
-  Background: #FEF2F2
-```
-
----
-
-### Query Input
-
-```
-Input field:
-  Border: 1.5px solid #D1D5DB
-  Border radius: 8px
-  Padding: 12px 16px
-  Font: Inter 15px 400
-  Background: #FFFFFF
-  Color: #111827
-
-  Focus: border-color #1B3A5C, box-shadow 0 0 0 3px rgba(27, 58, 92, 0.15)
-  Placeholder: color #9CA3AF
-
-Submit button:
-  Attached to right edge of input (or below on mobile)
-  Uses Primary button style
-  Icon: arrow-right or send glyph
-```
-
----
-
-### Answer Display
-
-```
-Answer text container:
-  Font: Inter 15px 400
-  Color: #111827
-  Line height: 1.7
-  Max width: 720px
-
-Citation inline marker (e.g., [1]):
-  Color: #C9873A
-  Font-weight: 600
-  Cursor: pointer (scrolls to citation block below)
-
-Citations section heading:
-  Font: Inter 13px 600
-  Color: #4B5563
-  Text-transform: uppercase
-  Letter-spacing: 0.06em
-  Margin-top: 24px
-  Margin-bottom: 12px
-```
-
----
-
-### Legal Disclaimer Banner
-
-```
-Background: #FFFBEB
-Border: 1px solid #D97706
-Border radius: 8px
-Padding: 12px 16px
-Font: Inter 13px 400
-Color: #92400E
-Icon: ⚠ (warning) — color #D97706
-
-Text: "LegalBridge provides legal information, not legal advice.
-      Always consult a qualified lawyer for legal counsel."
-```
-
----
-
-### Loading States
-
-**Query in progress:**
-```
-Answer area: animated pulse placeholder (3 lines, gray skeleton)
-Submit button: disabled, "Searching..." label with spinner icon
-Duration token: --duration-slow (300ms pulse cycle)
-```
-
-**Ingestion in progress:**
-```
-Upload zone: progress indicator
-"Processing document..." text below upload zone
-Duration: until ingest API returns
-```
-
----
-
-## Motion & Animation
-
-| Token | Value | Use |
-|-------|-------|-----|
-| `--duration-fast` | 100ms | Hover state color transitions |
-| `--duration-base` | 200ms | Button clicks, focus rings, small transitions |
-| `--duration-slow` | 300ms | Card entrance, answer reveal, loading pulse |
-| `--easing-out` | `cubic-bezier(0, 0, 0.2, 1)` | Elements entering the screen |
-| `--easing-in-out` | `cubic-bezier(0.4, 0, 0.2, 1)` | Elements moving within the screen |
-
-**Answer reveal:** When the query response is received, the answer container fades in over 300ms with a slight `translateY(4px → 0)`. Citations appear 100ms after the answer.
-
-**Accessibility:** All transitions MUST be gated on `prefers-reduced-motion`:
-```css
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-```
-
----
-
-## Page-Level Patterns
-
-### Main Application Page (Single Page)
-
-```
-┌─────────────────────────────────────────────────────┐
-│  HEADER: LegalBridge logo + tagline                 │
-│  Background: #1B3A5C (Deep Navy)                    │
-│  Text: #FFFFFF                                      │
-├─────────────────────────────────────────────────────┤
-│  DISCLAIMER BANNER (always visible)                 │
-│  "LegalBridge provides information, not legal       │
-│   advice. Consult a qualified lawyer."              │
-├─────────────────────────────────────────────────────┤
-│  UPLOAD ZONE (or "Document loaded" confirmation)    │
-│  Drag-and-drop PDF upload                           │
-│  OR: "Demo document loaded: Ghana Companies Act"    │
-├─────────────────────────────────────────────────────┤
-│  QUERY SECTION                                      │
-│  ┌─────────────────────────────────────────────┐   │
-│  │  What would you like to know?               │   │
-│  │  [text input                    ] [Ask →]   │   │
-│  └─────────────────────────────────────────────┘   │
-│  Suggested questions (pills, clickable)             │
-├─────────────────────────────────────────────────────┤
-│  ANSWER SECTION (empty until first query)           │
-│  Answer text...                                     │
-│  ──────────────────────────────────────────────     │
-│  SOURCES                                            │
-│  ┌──────────────────────────────────────────────┐  │
-│  │ [1] ghana_companies_act.pdf                  │  │
-│  │     "Verbatim passage text from document..." │  │
-│  └──────────────────────────────────────────────┘  │
-├─────────────────────────────────────────────────────┤
-│  FOOTER: "Powered by open-source AI · Built for West Africa"│
-└─────────────────────────────────────────────────────┘
+┌ LegalBridge                                 EN  ☾ ┐
+│ Vos documents juridiques, expliqués.              │
+├───────────────────────────────────────────────────┤
+│ Votre document                                    │
+│ [ code-travail.pdf · 98 passages …   Remplacer ]  │
+│                                                   │
+│ Question                                          │
+│ Answer in serif with highlighter chips  1   2     │
+│ Sources                                           │
+│ [ 1  Article 42–44, p. 14 — passage… ]            │
+│                                                   │
+│ Interroger ce document                            │
+│ [ Que voulez-vous savoir…               (↑) ]     │
+│ ⚖ LegalBridge fournit une information juridique…  │
+└───────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Accessibility Checklist
 
-- [ ] All text meets WCAG 2.1 AA contrast ratios: ≥ 4.5:1 for body text, ≥ 3:1 for large text (≥18px bold or ≥24px regular)
-- [ ] Deep Navy `#1B3A5C` on White `#FFFFFF`: contrast ratio 9.5:1 ✓
-- [ ] Warm Amber `#C9873A` on White `#FFFFFF`: contrast ratio 3.1:1 — use only for large text or decorative elements, not body copy
-- [ ] All interactive elements have visible focus indicators (3px ring)
-- [ ] All touch targets are ≥ 44×44px (mobile)
-- [ ] Color is never the sole indicator of state (error states use icon + border + text, not color alone)
-- [ ] `prefers-reduced-motion` is respected for all animations
-- [ ] All images and icons have `aria-label` or `alt` text
-- [ ] Semantic HTML: `<button>`, `<nav>`, `<main>`, `<section>`, `<header>`, `<footer>`
-- [ ] Loading states communicate via `aria-live="polite"` regions
-- [ ] Form inputs have associated `<label>` elements
+- Body text ≥ 4.5:1 in both themes (ink on paper 14.3:1, slate on paper 5.4:1, amber ink on page 5.9:1; dark: text 14.9:1, slate 7.3:1, amber 7.3:1)
+- Amber `#C9873A` is never used for text; amber text uses `--highlight-ink`
+- Visible focus outline (2px, `--ring`) on every interactive element
+- Touch targets ≥ 44×44px (toggles, send, Replace)
+- State is never shown by colour alone (errors are text in `role="alert"`)
+- Streaming progress is announced through an `aria-live="polite"` region
+- `lang` on `<html>` follows the selected language; the language switch is labelled in the target language
 
 ---
 
-## Language & Tone Guidelines
+## Language & Tone
 
-**For UI labels and buttons:**
-- Use direct verbs: "Ask", "Upload", "View source" — not "Submit Query" or "Initiate Document Ingestion"
-- Keep button labels under 20 characters
-- In French: "Poser une question", "Télécharger", "Voir la source"
-
-**For answer synthesis (Claude prompt instructions):**
-- Plain language over legal jargon
-- Active voice where possible
-- Precise: quote the specific section number when available
-
-**For error messages:**
-- Describe what happened: "This file is not a PDF."
-- Suggest a next action: "Please upload a PDF document."
-- Never blame the user: not "Invalid file type" alone — add context
-
-**For the disclaimer:**
-- English: "LegalBridge provides legal information, not legal advice. Consult a qualified lawyer for legal counsel."
-- French: "LegalBridge fournit des informations juridiques, et non des conseils juridiques. Consultez un avocat qualifié pour obtenir des conseils."
-
-**Brand voice adjectives:** Authoritative · Clear · Accessible · Grounded
-**Avoid:** Casual slang, excessive exclamation, vague legal terms used as decoration, English-only assumptions
+- **French first**: French is the default; the browser language and a saved choice can switch to English. All interface strings live in `lib/i18n.tsx`, and API error codes map to localized messages there.
+- Plain verbs and sentence case: "Demander", "Remplacer", "Ask", "Replace".
+- Errors say what happened and what to do next: "Ce fichier n’est pas un PDF. Choisissez un document PDF."
+- Empty and no-result states give direction, not mood: "Ce document n’aborde pas cette question" followed by what to try.
+- Disclaimer: "LegalBridge fournit une information juridique, pas un conseil juridique. Pour un avis sur votre situation, consultez un juriste ou un avocat." / "LegalBridge gives legal information, not legal advice. For advice on your situation, consult a qualified lawyer."

@@ -9,7 +9,7 @@ export interface Citation {
   section?: string;
 }
 
-/** "Article 12 · p. 4–5 · code.pdf" — the parts of a citation's location that are known. */
+/** "Article 12, p. 4–5, code.pdf": the parts of a citation's location that are known. */
 export function citationLocation(c: Citation): string {
   const parts: string[] = [];
   if (c.section) parts.push(c.section);
@@ -21,7 +21,7 @@ export function citationLocation(c: Citation): string {
     );
   }
   parts.push(c.document_name);
-  return parts.join(" · ");
+  return parts.join(", ");
 }
 
 export interface IngestResponse {

@@ -268,7 +268,7 @@ HTTP 200 { "answer": "...", "citations": [...], "query": "..." }
 | PostgreSQL 16 + pgvector | Store | Vector similarity search, transactional writes |
 | Docker | Infrastructure | Reproducible containerized deployment |
 | Railway or Render | Deployment | Go backend + managed PostgreSQL |
-| Next.js 14 + React 18 | UI | SSR-capable SPA, Vercel-native deployment |
+| Next.js 16 + React 19 | UI | SSR-capable SPA, Vercel-native deployment |
 | TypeScript | UI | Type safety for API contracts |
 | shadcn/ui | UI | Accessible, unstyled component primitives |
 | Tailwind CSS | UI | Utility-first styling |

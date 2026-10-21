@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback } from "react";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowUp, Loader2 } from "lucide-react";
+import { useLocale } from "@/lib/i18n";
 
 interface Props {
   question: string;
@@ -9,7 +9,7 @@ interface Props {
   onSubmit: () => void;
   isLoading: boolean;
   error?: string;
-  suggestedQuestions?: string[];
+  showSuggestions?: boolean;
 }
 
 export default function QueryInput({
@@ -18,87 +18,77 @@ export default function QueryInput({
   onSubmit,
   isLoading,
   error,
-  suggestedQuestions,
+  showSuggestions,
 }: Props) {
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // Submit on Enter (without Shift).
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        if (!isLoading && question.trim()) onSubmit();
-      }
-    },
-    [isLoading, question, onSubmit]
-  );
-
+  const { t } = useLocale();
   const canSubmit = !isLoading && question.trim().length > 0;
 
   return (
     <section aria-labelledby="query-heading">
-      <h2
-        id="query-heading"
-        className="mb-3 text-xs font-semibold uppercase tracking-widest text-[#4B5563]"
-      >
-        Ask a question
+      <h2 id="query-heading" className="mb-2 text-sm font-medium text-muted-foreground">
+        {t.askHeading}
       </h2>
 
-      {/* Input + button row */}
-      <div className="flex gap-2 items-end">
-        <div className="relative flex-1">
-          <label htmlFor="question-input" className="sr-only">
-            Your question
-          </label>
-          <textarea
-            id="question-input"
-            rows={2}
-            value={question}
-            onChange={(e) => onQuestionChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isLoading}
-            placeholder="What would you like to know?"
-            className="w-full resize-none rounded-lg border border-[#D1D5DB] bg-white px-4 py-3 text-[15px] text-[#111827] placeholder-[#9CA3AF] outline-none transition-shadow focus:border-[#1B3A5C] focus:ring-3 focus:ring-[rgba(27,58,92,0.15)] disabled:cursor-not-allowed disabled:opacity-60"
-          />
-        </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (canSubmit) onSubmit();
+        }}
+        className="flex items-end gap-2 rounded-xl border bg-card p-2 transition-shadow focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/15"
+      >
+        <label htmlFor="question-input" className="sr-only">
+          {t.askLabel}
+        </label>
+        <textarea
+          id="question-input"
+          rows={2}
+          value={question}
+          onChange={(e) => onQuestionChange(e.target.value)}
+          onKeyDown={(e) => {
+            // Enter submits; Shift+Enter adds a line.
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (canSubmit) onSubmit();
+            }
+          }}
+          disabled={isLoading}
+          placeholder={t.askPlaceholder}
+          className="min-h-11 flex-1 resize-none bg-transparent px-2 py-2 text-[15px] outline-none placeholder:text-muted-foreground disabled:opacity-60"
+        />
         <button
-          onClick={onSubmit}
+          type="submit"
           disabled={!canSubmit}
-          aria-label="Submit question"
-          className="flex h-[72px] min-w-[48px] items-center justify-center rounded-lg bg-[#1B3A5C] px-4 text-white transition-all hover:bg-[#162F4A] hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(27,58,92,0.3)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[rgba(27,58,92,0.35)] active:translate-y-0 disabled:cursor-not-allowed disabled:bg-[#9CA3AF] disabled:shadow-none"
+          aria-label={t.askSubmit}
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:bg-muted disabled:text-muted-foreground"
         >
           {isLoading ? (
-            <Loader2 className="size-5 animate-spin" aria-label="Searching…" />
+            <Loader2 className="size-5 animate-spin" aria-hidden="true" />
           ) : (
-            <ArrowRight className="size-5" aria-hidden="true" />
+            <ArrowUp className="size-5" aria-hidden="true" />
           )}
         </button>
-      </div>
+      </form>
 
-      {/* Error message */}
       {error && (
-        <p role="alert" className="mt-2 flex items-center gap-1.5 text-sm text-[#DC2626]">
-          <span aria-hidden="true">✕</span>
+        <p role="alert" className="mt-2 text-sm text-destructive">
           {error}
         </p>
       )}
 
-      {/* Suggested questions */}
-      {suggestedQuestions && suggestedQuestions.length > 0 && (
-        <div
-          className="mt-3 flex flex-wrap gap-2"
-          aria-label="Suggested questions"
-        >
-          {suggestedQuestions.map((q) => (
-            <button
-              key={q}
-              onClick={() => {
-                onQuestionChange(q);
-              }}
-              className="rounded-full border border-[#D1D5DB] bg-white px-3 py-1.5 text-xs text-[#4B5563] transition-colors hover:border-[#C9873A] hover:text-[#C9873A]"
-            >
-              {q}
-            </button>
+      {showSuggestions && (
+        <ul className="mt-3 flex flex-wrap gap-2" aria-label={t.askHeading}>
+          {t.suggestions.map((q) => (
+            <li key={q}>
+              <button
+                type="button"
+                onClick={() => onQuestionChange(q)}
+                className="min-h-9 rounded-full border bg-card px-3 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:border-highlight hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                {q}
+              </button>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </section>
   );
