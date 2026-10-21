@@ -7,20 +7,29 @@ import (
 	"testing"
 
 	"github.com/mibienpanjoe/legalbridge/internal/store"
+	"github.com/mibienpanjoe/legalbridge/pkg/config"
 )
 
 // ─── fakes ───────────────────────────────────────────────────────────────────
 
+const testDocID = "3f4a7b2c-1e6d-4a89-b3c2-9d1e5f7a8b0c"
+
 type fakeStore struct {
 	chunks []store.Chunk
 	err    error
+
+	// recorded arguments of the last SimilaritySearch call
+	gotDocID         string
+	gotMinSimilarity float64
 }
 
 func (f *fakeStore) WriteDocument(_ context.Context, _ string) (string, error) { return "", nil }
 func (f *fakeStore) WriteChunks(_ context.Context, _ string, _ []store.Chunk) error {
 	return nil
 }
-func (f *fakeStore) SimilaritySearch(_ context.Context, _ []float32, _ int) ([]store.Chunk, error) {
+func (f *fakeStore) SimilaritySearch(_ context.Context, documentID string, _ []float32, _ int, minSimilarity float64) ([]store.Chunk, error) {
+	f.gotDocID = documentID
+	f.gotMinSimilarity = minSimilarity
 	return f.chunks, f.err
 }
 func (f *fakeStore) Ping(_ context.Context) error { return nil }
@@ -88,7 +97,7 @@ func TestQuery_INV06_EmptyRetrieval(t *testing.T) {
 		&countingLLM{inner: llm, count: &callCount},
 	)
 
-	_, err := p.Query(context.Background(), "What are the requirements?")
+	_, err := p.Query(context.Background(), testDocID, "What are the requirements?")
 
 	var noResults *NoResultsError
 	if !errors.As(err, &noResults) {
@@ -113,7 +122,7 @@ func TestQuery_INV02_UncitedResponse(t *testing.T) {
 		&fakeLLM{response: "A foreign company must register within 28 days."}, // no [1] citation
 	)
 
-	result, err := p.Query(context.Background(), "How long to register?")
+	result, err := p.Query(context.Background(), testDocID, "How long to register?")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -138,7 +147,7 @@ func TestQuery_CitedResponse(t *testing.T) {
 		&fakeLLM{response: "According to the Act, registration is required within 28 days [1] and certified documents are needed [2]."},
 	)
 
-	result, err := p.Query(context.Background(), "What are the registration requirements?")
+	result, err := p.Query(context.Background(), testDocID, "What are the registration requirements?")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -157,7 +166,7 @@ func TestQuery_CitedResponse(t *testing.T) {
 func TestQuery_EmptyQuestion(t *testing.T) {
 	p := NewQueryProcessor(&fakeStore{}, &fakeEmbedder{}, &fakeLLM{})
 
-	_, err := p.Query(context.Background(), "   ")
+	_, err := p.Query(context.Background(), testDocID, "   ")
 	var emptyErr *EmptyQueryError
 	if !errors.As(err, &emptyErr) {
 		t.Fatalf("expected EmptyQueryError, got %T: %v", err, err)
@@ -174,4 +183,21 @@ type countingLLM struct {
 func (c *countingLLM) Complete(ctx context.Context, sys, user string) (string, error) {
 	*c.count++
 	return c.inner.Complete(ctx, sys, user)
+}
+
+// TestQuery_ScopedToDocumentWithThreshold verifies that retrieval is limited to
+// the requested document and filtered by config.MinSimilarity (INV-06).
+func TestQuery_ScopedToDocumentWithThreshold(t *testing.T) {
+	fs := &fakeStore{chunks: []store.Chunk{{Content: "passage", DocumentFilename: "doc.pdf"}}}
+	p := NewQueryProcessor(fs, &fakeEmbedder{}, &fakeLLM{response: "Answer [1]."})
+
+	if _, err := p.Query(context.Background(), testDocID, "question?"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fs.gotDocID != testDocID {
+		t.Errorf("expected search scoped to %q, got %q", testDocID, fs.gotDocID)
+	}
+	if fs.gotMinSimilarity != config.MinSimilarity {
+		t.Errorf("expected minSimilarity %v, got %v", config.MinSimilarity, fs.gotMinSimilarity)
+	}
 }

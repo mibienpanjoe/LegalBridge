@@ -48,15 +48,17 @@ func NewQueryProcessor(s store.Store, ec EmbeddingClient, lc LLMClient) *QueryPr
 	return &QueryProcessor{store: s, embeddingClient: ec, llmClient: lc}
 }
 
-// Query runs the full RAG pipeline for the given question.
+// Query runs the full RAG pipeline for the given question against a single
+// document. Passages from other documents are never retrieved.
 //
 // Invariants enforced here:
 //   - INV-04: config.EmbeddingModel is the only model name passed to Embed.
 //   - INV-06: returns NoResultsError immediately when SimilaritySearch returns
-//     zero chunks; the LLM is never called with an empty context.
+//     no chunk above config.MinSimilarity; the LLM is never called with an
+//     empty context.
 //   - INV-02: validates that the LLM response contains at least one [N] citation;
 //     returns a fallback message if not.
-func (p *QueryProcessor) Query(ctx context.Context, question string) (*QueryResult, error) {
+func (p *QueryProcessor) Query(ctx context.Context, documentID, question string) (*QueryResult, error) {
 	if strings.TrimSpace(question) == "" {
 		return nil, &EmptyQueryError{}
 	}
@@ -67,8 +69,8 @@ func (p *QueryProcessor) Query(ctx context.Context, question string) (*QueryResu
 		return nil, err
 	}
 
-	// Retrieve top-3 passages by cosine similarity.
-	chunks, err := p.store.SimilaritySearch(ctx, queryVector, 3)
+	// Retrieve the closest passages of this document above the threshold.
+	chunks, err := p.store.SimilaritySearch(ctx, documentID, queryVector, config.RetrievalTopK, config.MinSimilarity)
 	if err != nil {
 		return nil, err
 	}

@@ -32,15 +32,15 @@ type fakeQuerySvc struct {
 	err    error
 }
 
-func (f *fakeQuerySvc) Query(_ context.Context, _ string) (*query.QueryResult, error) {
+func (f *fakeQuerySvc) Query(_ context.Context, _, _ string) (*query.QueryResult, error) {
 	return f.result, f.err
 }
 
 type fakeStore struct{ pingErr error }
 
-func (f *fakeStore) WriteDocument(_ context.Context, _ string) (string, error) { return "", nil }
+func (f *fakeStore) WriteDocument(_ context.Context, _ string) (string, error)      { return "", nil }
 func (f *fakeStore) WriteChunks(_ context.Context, _ string, _ []store.Chunk) error { return nil }
-func (f *fakeStore) SimilaritySearch(_ context.Context, _ []float32, _ int) ([]store.Chunk, error) {
+func (f *fakeStore) SimilaritySearch(_ context.Context, _ string, _ []float32, _ int, _ float64) ([]store.Chunk, error) {
 	return nil, nil
 }
 func (f *fakeStore) Ping(_ context.Context) error { return f.pingErr }
@@ -144,7 +144,7 @@ func TestHandleQuery_OK(t *testing.T) {
 	)
 	r := newTestRouter(h)
 
-	reqBody := strings.NewReader(`{"question":"How long to register?"}`)
+	reqBody := strings.NewReader(`{"document_id":"3f4a7b2c-1e6d-4a89-b3c2-9d1e5f7a8b0c","question":"How long to register?"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/query", reqBody)
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -179,7 +179,7 @@ func TestHandleQuery_NoResults(t *testing.T) {
 	)
 	r := newTestRouter(h)
 
-	reqBody := strings.NewReader(`{"question":"Unrelated question"}`)
+	reqBody := strings.NewReader(`{"document_id":"3f4a7b2c-1e6d-4a89-b3c2-9d1e5f7a8b0c","question":"Unrelated question"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/query", reqBody)
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -195,5 +195,26 @@ func TestHandleQuery_NoResults(t *testing.T) {
 	}
 	if !resp.NoResults {
 		t.Error("expected no_results=true")
+	}
+}
+
+// TestHandleQuery_RequiresDocumentID verifies that a query without a valid
+// document_id is rejected, so retrieval can never span other documents.
+func TestHandleQuery_RequiresDocumentID(t *testing.T) {
+	h := NewAPIHandler(&fakeIngestor{}, &fakeQuerySvc{}, &fakeStore{})
+	r := newTestRouter(h)
+
+	for _, body := range []string{
+		`{"question":"How long to register?"}`,
+		`{"document_id":"not-a-uuid","question":"How long to register?"}`,
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/api/query", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("body %s: expected 400, got %d", body, w.Code)
+		}
 	}
 }

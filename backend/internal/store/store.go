@@ -15,6 +15,7 @@ type Chunk struct {
 	Embedding        []float32
 	ChunkIndex       int
 	CreatedAt        time.Time
+	Similarity       float64 // cosine similarity to the query; populated by SimilaritySearch
 }
 
 // Store owns all PostgreSQL read and write operations.
@@ -28,9 +29,10 @@ type Store interface {
 	// embedding whose length is not exactly 1024.
 	WriteChunks(ctx context.Context, documentID string, chunks []Chunk) error
 
-	// SimilaritySearch returns the topK chunks closest to vector by cosine
-	// distance, ordered nearest-first.
-	SimilaritySearch(ctx context.Context, vector []float32, topK int) ([]Chunk, error)
+	// SimilaritySearch returns up to topK chunks of the given document whose
+	// cosine similarity to vector is at least minSimilarity, ordered
+	// nearest-first. Chunks of other documents are never returned.
+	SimilaritySearch(ctx context.Context, documentID string, vector []float32, topK int, minSimilarity float64) ([]Chunk, error)
 
 	// Ping checks that the database connection is healthy.
 	Ping(ctx context.Context) error

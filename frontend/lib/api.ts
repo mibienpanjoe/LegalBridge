@@ -46,11 +46,14 @@ export async function ingestDocument(file: File): Promise<IngestResponse> {
   return res.json();
 }
 
-export async function queryDocument(question: string): Promise<QueryResponse> {
+export async function queryDocument(
+  documentId: string,
+  question: string
+): Promise<QueryResponse> {
   const res = await fetch(`${API_BASE}/api/query`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ document_id: documentId, question }),
   });
 
   if (!res.ok) throw await parseError(res);
