@@ -10,6 +10,7 @@ interface Props {
   status: UploadStatus;
   chunkCount?: number;
   filename?: string;
+  expiresAt?: string;
   error?: string;
   onUpload: (file: File) => void;
 }
@@ -18,6 +19,7 @@ export default function DocumentUpload({
   status,
   chunkCount,
   filename,
+  expiresAt,
   error,
   onUpload,
 }: Props) {
@@ -75,6 +77,16 @@ export default function DocumentUpload({
           {chunkCount !== undefined && (
             <p className="text-xs text-[#4B5563] mt-0.5">
               {chunkCount} passage{chunkCount !== 1 ? "s" : ""} indexed
+              {expiresAt && (
+                <>
+                  {" · "}deleted automatically{" "}
+                  {new Date(expiresAt).toLocaleString(undefined, {
+                    weekday: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </>
+              )}
             </p>
           )}
         </div>

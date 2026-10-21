@@ -29,8 +29,9 @@ type queryService interface {
 // ─── response types ───────────────────────────────────────────────────────────
 
 type ingestResponse struct {
-	DocumentID string `json:"document_id"`
-	ChunkCount int    `json:"chunk_count"`
+	DocumentID string     `json:"document_id"`
+	ChunkCount int        `json:"chunk_count"`
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
 }
 
 type citationResponse struct {
@@ -147,10 +148,11 @@ func (h *APIHandler) handleIngest(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, ingestResponse{
-		DocumentID: result.DocumentID,
-		ChunkCount: result.ChunkCount,
-	})
+	resp := ingestResponse{DocumentID: result.DocumentID, ChunkCount: result.ChunkCount}
+	if !result.ExpiresAt.IsZero() {
+		resp.ExpiresAt = &result.ExpiresAt
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *APIHandler) handleIngestError(c *gin.Context, err error) {
@@ -232,6 +234,7 @@ func (h *APIHandler) handleQueryError(c *gin.Context, err error) {
 		log.Printf("query failed: %v", err)
 	}
 	var emptyErr *query.EmptyQueryError
+	var notFoundErr *query.DocumentNotFoundError
 	var noResultsErr *query.NoResultsError
 	var llmErr *query.LLMUnavailableError
 	var embedErr *ingester.EmbeddingUnavailableError
@@ -242,6 +245,11 @@ func (h *APIHandler) handleQueryError(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, errorEnvelope{Error: apiError{
 			Code:    "EMPTY_QUERY",
 			Message: emptyErr.Error(),
+		}})
+	case errors.As(err, &notFoundErr):
+		c.JSON(http.StatusNotFound, errorEnvelope{Error: apiError{
+			Code:    "DOCUMENT_NOT_FOUND",
+			Message: "this document is no longer available — please upload it again",
 		}})
 	case errors.As(err, &noResultsErr):
 		// INV-06 result: 200 with no_results flag, not an error status.

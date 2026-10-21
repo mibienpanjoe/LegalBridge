@@ -50,6 +50,7 @@ At MVP scale — one document, a few hundred chunks — pgvector running inside 
 **Outputs:** `QueryResult{Answer, Citations}` or error
 
 **Key behaviors:**
+0. Call `Store.DocumentExists(documentID)`; if missing or expired → `DocumentNotFoundError` (HTTP 404 `DOCUMENT_NOT_FOUND`), before any embedding or LLM call
 1. Call `EmbeddingClient.Embed(question, config.EmbeddingModel)` → `queryVector`
 2. Call `Store.SimilaritySearch(documentID, queryVector, config.RetrievalCandidates, config.MinSimilarity)` → up to 20 candidates (only chunks of that document with cosine similarity ≥ 0.45)
 3. **If `len(candidates) == 0`**: return `NoResultsError` immediately without calling the LLM (INV-06)
@@ -168,6 +169,7 @@ type Store interface {
 CREATE TABLE documents (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     filename    TEXT NOT NULL,
+    expires_at  TIMESTAMPTZ,          -- NULL = never (seeded demo); uploads: created + 24 h
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

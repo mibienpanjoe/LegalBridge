@@ -75,6 +75,14 @@ func (p *QueryProcessor) Query(ctx context.Context, documentID, question string)
 		return nil, &EmptyQueryError{}
 	}
 
+	exists, err := p.store.DocumentExists(ctx, documentID)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, &DocumentNotFoundError{}
+	}
+
 	// Embed the question using the same model as ingestion (INV-04).
 	queryVector, err := p.embeddingClient.Embed(ctx, question, config.EmbeddingModel)
 	if err != nil {

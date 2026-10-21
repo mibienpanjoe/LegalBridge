@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mibienpanjoe/legalbridge/internal/store"
 	"github.com/mibienpanjoe/legalbridge/pkg/config"
@@ -22,10 +23,15 @@ type fakeStore struct {
 	gotDocID         string
 	gotMinSimilarity float64
 
-	contentsCalls int // number of ChunkContents calls
+	contentsCalls int  // number of ChunkContents calls
+	missing       bool // DocumentExists reports false
 }
 
-func (f *fakeStore) WriteDocument(_ context.Context, _ string) (string, error) { return "", nil }
+func (f *fakeStore) WriteDocument(_ context.Context, _ string, _ time.Time) (string, error) {
+	return "", nil
+}
+func (f *fakeStore) DocumentExists(_ context.Context, _ string) (bool, error) { return !f.missing, nil }
+func (f *fakeStore) DeleteExpiredDocuments(_ context.Context) (int64, error)  { return 0, nil }
 func (f *fakeStore) WriteChunks(_ context.Context, _ string, _ []store.Chunk) error {
 	return nil
 }
@@ -224,5 +230,21 @@ func TestBuildRAGPrompt_PassageLocation(t *testing.T) {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("prompt missing %q", want)
 		}
+	}
+}
+
+// TestQuery_DocumentNotFound verifies that a missing or expired document is
+// reported before any embedding or LLM call.
+func TestQuery_DocumentNotFound(t *testing.T) {
+	calls := 0
+	p := NewQueryProcessor(&fakeStore{missing: true}, &fakeEmbedder{}, &countingLLM{inner: &fakeLLM{}, count: &calls})
+
+	_, err := p.Query(context.Background(), testDocID, "question ?")
+	var notFound *DocumentNotFoundError
+	if !errors.As(err, &notFound) {
+		t.Fatalf("expected DocumentNotFoundError, got %T: %v", err, err)
+	}
+	if calls != 0 {
+		t.Errorf("LLM called %d time(s) for a missing document", calls)
 	}
 }

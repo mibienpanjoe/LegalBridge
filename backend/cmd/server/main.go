@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mibienpanjoe/legalbridge/internal/api"
@@ -32,8 +33,10 @@ func main() {
 	llmClient := query.NewLLMClient(cfg)
 
 	// Wire up the ingestion and query pipelines.
-	ing := ingester.NewIngester(pg, embeddingClient)
+	ing := ingester.NewIngester(pg, embeddingClient, config.UploadTTL)
 	qp := query.NewQueryProcessor(pg, embeddingClient, llmClient)
+
+	go sweepExpiredDocuments(ctx, pg)
 
 	// Build the Gin router.
 	r := gin.New()
@@ -45,5 +48,26 @@ func main() {
 	log.Println("LegalBridge backend listening on :8080")
 	if err := r.Run(":8080"); err != nil {
 		log.Fatalf("server error: %v", err)
+	}
+}
+
+// sweepExpiredDocuments deletes expired uploads at startup and then every
+// config.ExpirySweepInterval, so documents are not kept beyond their TTL.
+func sweepExpiredDocuments(ctx context.Context, s store.Store) {
+	ticker := time.NewTicker(config.ExpirySweepInterval)
+	defer ticker.Stop()
+	for {
+		n, err := s.DeleteExpiredDocuments(ctx)
+		switch {
+		case err != nil:
+			log.Printf("expiry sweep failed: %v", err)
+		case n > 0:
+			log.Printf("expiry sweep: deleted %d expired document(s)", n)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
 	}
 }

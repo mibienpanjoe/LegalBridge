@@ -12,6 +12,7 @@ import (
 	"math"
 	"os"
 	"testing"
+	"time"
 )
 
 func newTestStore(t *testing.T) *PostgresStore {
@@ -41,7 +42,7 @@ func unitVector(theta float64) []float32 {
 func writeDoc(t *testing.T, s *PostgresStore, name string, thetas ...float64) string {
 	t.Helper()
 	ctx := context.Background()
-	id, err := s.WriteDocument(ctx, name)
+	id, err := s.WriteDocument(ctx, name, time.Time{})
 	if err != nil {
 		t.Fatalf("write document: %v", err)
 	}
@@ -130,6 +131,47 @@ func TestChunkContents(t *testing.T) {
 	for _, c := range got {
 		if c.ID == "" || c.Content != "doc.pdf" || c.Embedding != nil {
 			t.Errorf("unexpected chunk %+v", c)
+		}
+	}
+}
+
+// TestDocumentExpiry verifies that an expired document is reported missing,
+// is deleted by the sweep together with its chunks, and that documents
+// without expiry or with a future expiry are kept.
+func TestDocumentExpiry(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	expired, err := s.WriteDocument(ctx, "expired.pdf", time.Now().Add(-time.Minute))
+	if err != nil {
+		t.Fatalf("write document: %v", err)
+	}
+	if err := s.WriteChunks(ctx, expired, []Chunk{{Content: "x", Embedding: unitVector(0)}}); err != nil {
+		t.Fatalf("write chunks: %v", err)
+	}
+	future, _ := s.WriteDocument(ctx, "future.pdf", time.Now().Add(time.Hour))
+	forever := writeDoc(t, s, "seed.pdf", 0)
+	t.Cleanup(func() { s.pool.Exec(context.Background(), `DELETE FROM documents WHERE id = $1`, future) })
+
+	for id, want := range map[string]bool{expired: false, future: true, forever: true} {
+		got, err := s.DocumentExists(ctx, id)
+		if err != nil || got != want {
+			t.Errorf("DocumentExists(%s) = %v, %v; want %v", id, got, err, want)
+		}
+	}
+
+	n, err := s.DeleteExpiredDocuments(ctx)
+	if err != nil || n < 1 {
+		t.Fatalf("DeleteExpiredDocuments = %d, %v; want ≥1", n, err)
+	}
+	var chunks int
+	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM chunks WHERE document_id = $1`, expired).Scan(&chunks)
+	if chunks != 0 {
+		t.Errorf("expected expired document's chunks to cascade-delete, %d left", chunks)
+	}
+	for _, id := range []string{future, forever} {
+		if ok, _ := s.DocumentExists(ctx, id); !ok {
+			t.Errorf("document %s should have been kept", id)
 		}
 	}
 }

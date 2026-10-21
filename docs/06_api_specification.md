@@ -47,16 +47,16 @@ Ingest a PDF document. Extracts text, chunks it, generates embeddings, and store
 ```json
 {
   "document_id": "3f4a7b2c-1e6d-4a89-b3c2-9d1e5f7a8b0c",
-  "filename": "ghana_companies_act.pdf",
-  "chunk_count": 142
+  "chunk_count": 142,
+  "expires_at": "2026-10-22T04:30:00Z"
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `document_id` | UUID string | Unique identifier for the ingested document |
-| `filename` | string | Original filename from the upload |
 | `chunk_count` | integer | Number of text chunks created and stored |
+| `expires_at` | RFC 3339 string | When the upload and its chunks are deleted (`config.UploadTTL`, 24 h after ingestion). Omitted for documents that never expire (the seeded demo). |
 
 **Errors:**
 
@@ -136,6 +136,8 @@ Submit a natural language question about one ingested document. The system embed
 | Status | Code | Trigger |
 |--------|------|---------|
 | 400 | `EMPTY_QUERY` | `question` field is empty string or missing |
+| 400 | `INVALID_REQUEST` | `document_id` missing or not a UUID |
+| 404 | `DOCUMENT_NOT_FOUND` | The document does not exist or has expired — the client should ask for a re-upload |
 | 503 | `LLM_UNAVAILABLE` | Groq API timed out (>10s) or returned a non-2xx response |
 | 503 | `EMBEDDING_UNAVAILABLE` | Embedding API (HuggingFace/Ollama) timed out or returned an error |
 | 503 | `DATABASE_UNAVAILABLE` | PostgreSQL connection failed during similarity search |
