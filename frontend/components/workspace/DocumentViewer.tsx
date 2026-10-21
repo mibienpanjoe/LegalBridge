@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import type { Citation } from "@/lib/api";
@@ -78,14 +78,21 @@ export default function DocumentViewer({ file, active }: Props) {
     return () => io.disconnect();
   }, [numPages]);
 
-  // Scroll to the active passage's first page.
+  // Scroll to the active passage's first page. Re-runs when the layout
+  // settles (pages loaded, width known): on small screens the viewer is hidden
+  // until its sheet opens, so pages only get their real size then.
   useEffect(() => {
     if (!active?.page_start) return;
     const page = active.page_start;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- ensure the target page renders before scrolling
     setVisible((prev) => (prev.has(page) ? prev : new Set(prev).add(page)));
-    pageRefs.current.get(page)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [active]);
+    // Jump instantly: a smooth scrollIntoView is cancelled by Chrome when the
+    // conversation pane starts its own smooth scroll for the new answer, and
+    // animating across many pages would be slow anyway.
+    const container = containerRef.current;
+    const target = pageRefs.current.get(page);
+    if (container && target) container.scrollTop = target.offsetTop - 16;
+  }, [active, width, numPages]);
 
   const foldedPassage = useMemo(() => (active ? fold(active.passage) : ""), [active]);
   const pageStart = active?.page_start ?? 0;
@@ -137,12 +144,17 @@ export default function DocumentViewer({ file, active }: Props) {
               aria-label={t.viewerPage(n, numPages)}
             >
               {visible.has(n) && (
-                <Page
-                  pageNumber={n}
-                  width={width}
-                  renderAnnotationLayer={false}
-                  customTextRenderer={renderText(n)}
-                />
+                // react-pdf suspends while a page loads. Without a boundary per
+                // page, the nearest one (next/dynamic's) hides every page, the
+                // scroll height collapses and the scroll position is lost.
+                <Suspense fallback={null}>
+                  <Page
+                    pageNumber={n}
+                    width={width}
+                    renderAnnotationLayer={false}
+                    customTextRenderer={renderText(n)}
+                  />
+                </Suspense>
               )}
             </div>
           ))}
