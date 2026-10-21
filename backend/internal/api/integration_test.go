@@ -9,7 +9,7 @@
 //
 // The server must be started separately (go run ./cmd/server) with Ollama or
 // Groq configured, and the demo document must already be seeded
-// (go run ./cmd/seed).
+// (go run ./cmd/seed). Set INTEGRATION_DOCUMENT_ID to the seeded document's id.
 package api_test
 
 import (
@@ -40,6 +40,15 @@ func serverURL(t *testing.T) string {
 	return u
 }
 
+func documentID(t *testing.T) string {
+	t.Helper()
+	id := os.Getenv("INTEGRATION_DOCUMENT_ID")
+	if id == "" {
+		t.Skip("INTEGRATION_DOCUMENT_ID not set — skipping query integration tests")
+	}
+	return id
+}
+
 // TestDemoQuestions_E2E posts each demo question to the running backend and
 // asserts that each response contains at least one citation.
 func TestDemoQuestions_E2E(t *testing.T) {
@@ -48,7 +57,10 @@ func TestDemoQuestions_E2E(t *testing.T) {
 	for _, q := range demoQuestions {
 		q := q
 		t.Run(q, func(t *testing.T) {
-			body, _ := json.Marshal(map[string]string{"question": q})
+			body, _ := json.Marshal(map[string]string{
+				"document_id": documentID(t),
+				"question":    q,
+			})
 			resp, err := http.Post(
 				base+"/api/query",
 				"application/json",

@@ -23,7 +23,7 @@ type ingestionService interface {
 
 // queryService is satisfied by *query.QueryProcessor.
 type queryService interface {
-	Query(ctx context.Context, question string) (*query.QueryResult, error)
+	Query(ctx context.Context, documentID, question string) (*query.QueryResult, error)
 }
 
 // ─── response types ───────────────────────────────────────────────────────────
@@ -183,21 +183,22 @@ func (h *APIHandler) handleIngestError(c *gin.Context, err error) {
 // ─── handleQuery ──────────────────────────────────────────────────────────────
 
 type queryRequest struct {
-	Question string `json:"question" binding:"required"`
+	DocumentID string `json:"document_id" binding:"required,uuid"`
+	Question   string `json:"question" binding:"required"`
 }
 
-// handleQuery accepts a JSON body with a "question" field.
+// handleQuery accepts a JSON body with "document_id" and "question" fields.
 func (h *APIHandler) handleQuery(c *gin.Context) {
 	var req queryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, errorEnvelope{Error: apiError{
 			Code:    "INVALID_REQUEST",
-			Message: "request body must be JSON with a non-empty 'question' field",
+			Message: "request body must be JSON with a valid 'document_id' and a non-empty 'question'",
 		}})
 		return
 	}
 
-	result, err := h.querySvc.Query(c.Request.Context(), req.Question)
+	result, err := h.querySvc.Query(c.Request.Context(), req.DocumentID, req.Question)
 	if err != nil {
 		h.handleQueryError(c, err)
 		return

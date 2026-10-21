@@ -72,19 +72,21 @@ Ingest a PDF document. Extracts text, chunks it, generates embeddings, and store
 
 ### POST /api/query
 
-Submit a natural language question. The system embeds the question, retrieves the top 3 most semantically relevant passages from the vector database, synthesizes a cited answer using Llama 3.3 via Groq, and returns the result.
+Submit a natural language question about one ingested document. The system embeds the question, retrieves up to 3 passages **of that document only** whose cosine similarity is at least `config.MinSimilarity` (0.45), synthesizes a cited answer using Llama 3.3 via Groq, and returns the result.
 
 **Auth required:** No
 
 **Request body:**
 ```json
 {
+  "document_id": "3f4a7b2c-1e6d-4a89-b3c2-9d1e5f7a8b0c",
   "question": "What are the requirements for registering a foreign company in Ghana?"
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
+| `document_id` | UUID string | Yes | The `document_id` returned by `POST /api/ingest`. Retrieval never spans other documents. |
 | `question` | string | Yes | Plain-language question in English or French. Must not be empty. |
 
 **Success — 200 OK (answer found):**

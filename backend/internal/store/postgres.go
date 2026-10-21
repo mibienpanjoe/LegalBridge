@@ -90,18 +90,32 @@ func (s *PostgresStore) WriteChunks(ctx context.Context, documentID string, chun
 	return nil
 }
 
-// SimilaritySearch returns the topK chunks nearest to vector by cosine
-// distance, ordered nearest-first. All queries are parameterized.
-// DocumentFilename is populated via JOIN with the documents table.
-func (s *PostgresStore) SimilaritySearch(ctx context.Context, vector []float32, topK int) ([]Chunk, error) {
+// SimilaritySearch returns up to topK chunks of documentID whose cosine
+// similarity to vector is at least minSimilarity, ordered nearest-first.
+// All queries are parameterized. DocumentFilename is populated via JOIN with
+// the documents table.
+//
+// The document's chunks are materialized first so the distance is computed
+// exactly over that document only. Filtering after an approximate HNSW scan
+// across all documents could silently drop relevant passages.
+func (s *PostgresStore) SimilaritySearch(ctx context.Context, documentID string, vector []float32, topK int, minSimilarity float64) ([]Chunk, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT c.id, c.document_id, d.filename, c.content, c.embedding, c.chunk_index, c.created_at
-		 FROM chunks c
-		 JOIN documents d ON d.id = c.document_id
-		 ORDER BY c.embedding <=> $1
-		 LIMIT $2`,
+		`WITH doc_chunks AS MATERIALIZED (
+		     SELECT c.id, c.document_id, c.content, c.embedding, c.chunk_index, c.created_at,
+		            1 - (c.embedding <=> $2) AS similarity
+		     FROM chunks c
+		     WHERE c.document_id = $1
+		 )
+		 SELECT dc.id, dc.document_id, d.filename, dc.content, dc.embedding, dc.chunk_index, dc.created_at, dc.similarity
+		 FROM doc_chunks dc
+		 JOIN documents d ON d.id = dc.document_id
+		 WHERE dc.similarity >= $4
+		 ORDER BY dc.similarity DESC
+		 LIMIT $3`,
+		documentID,
 		pgvector.NewVector(vector),
 		topK,
+		minSimilarity,
 	)
 	if err != nil {
 		return nil, &DatabaseUnavailableError{Cause: err}
@@ -112,7 +126,7 @@ func (s *PostgresStore) SimilaritySearch(ctx context.Context, vector []float32, 
 	for rows.Next() {
 		var c Chunk
 		var vec pgvector.Vector
-		if err := rows.Scan(&c.ID, &c.DocumentID, &c.DocumentFilename, &c.Content, &vec, &c.ChunkIndex, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.DocumentID, &c.DocumentFilename, &c.Content, &vec, &c.ChunkIndex, &c.CreatedAt, &c.Similarity); err != nil {
 			return nil, &DatabaseUnavailableError{Cause: err}
 		}
 		c.Embedding = vec.Slice()

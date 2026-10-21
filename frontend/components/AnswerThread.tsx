@@ -19,7 +19,7 @@ export default function AnswerThread({
     <section aria-label="Conversation" className="space-y-6">
       {/* Past Q&A entries */}
       {history.map((entry, i) => (
-        <AnswerEntry key={i} entry={entry} />
+        <AnswerEntry key={i} entry={entry} entryIndex={i} />
       ))}
 
       {/* Loading skeleton for in-flight query */}
@@ -43,7 +43,13 @@ export default function AnswerThread({
 
 // ─── Single Q&A card ──────────────────────────────────────────────────────────
 
-function AnswerEntry({ entry }: { entry: HistoryEntry }) {
+function AnswerEntry({
+  entry,
+  entryIndex,
+}: {
+  entry: HistoryEntry;
+  entryIndex: number;
+}) {
   if (entry.noResults) {
     return (
       <div>
@@ -68,7 +74,11 @@ function AnswerEntry({ entry }: { entry: HistoryEntry }) {
       <div className="mt-3 rounded-lg border border-[#D1D5DB] bg-white px-6 py-5">
         <p className="text-[15px] leading-[1.7] text-[#111827] max-w-[720px]">
           {/* Fix 5: render [N] refs as clickable anchors */}
-          <AnswerText text={entry.answer} citations={entry.citations} />
+          <AnswerText
+            text={entry.answer}
+            citations={entry.citations}
+            entryIndex={entryIndex}
+          />
         </p>
       </div>
 
@@ -81,7 +91,7 @@ function AnswerEntry({ entry }: { entry: HistoryEntry }) {
           <ul className="space-y-3" aria-label="Source passages">
             {entry.citations.map((c) => (
               <li key={c.index}>
-                <CitationBlock citation={c} />
+                <CitationBlock citation={c} entryIndex={entryIndex} />
               </li>
             ))}
           </ul>
@@ -106,17 +116,25 @@ function QuestionBubble({ question }: { question: string }) {
 
 // ─── Answer text with clickable [N] refs ──────────────────────────────────────
 
+// Citation anchors are namespaced by entry so [1] in a later answer does not
+// jump to [1] of an earlier one.
+function citationId(entryIndex: number, idx: number) {
+  return `citation-${entryIndex}-${idx}`;
+}
+
 function AnswerText({
   text,
   citations,
+  entryIndex,
 }: {
   text: string;
   citations: Citation[];
+  entryIndex: number;
 }) {
   const parts = text.split(/(\[\d+\])/g);
 
   const scrollTo = (idx: number) => {
-    document.getElementById(`citation-${idx}`)?.scrollIntoView({
+    document.getElementById(citationId(entryIndex, idx))?.scrollIntoView({
       behavior: "smooth",
       block: "center",
     });
@@ -152,7 +170,13 @@ function AnswerText({
 
 const PREVIEW_CHARS = 220;
 
-function CitationBlock({ citation }: { citation: Citation }) {
+function CitationBlock({
+  citation,
+  entryIndex,
+}: {
+  citation: Citation;
+  entryIndex: number;
+}) {
   const [expanded, setExpanded] = useState(false);
   const isLong = citation.passage.length > PREVIEW_CHARS;
   const displayed =
@@ -162,7 +186,7 @@ function CitationBlock({ citation }: { citation: Citation }) {
 
   return (
     <div
-      id={`citation-${citation.index}`}
+      id={citationId(entryIndex, citation.index)}
       className="rounded-r-lg border-l-4 border-l-[#C9873A] bg-[#F7F8FA] py-4 pl-4 pr-5"
     >
       {/* Badge */}

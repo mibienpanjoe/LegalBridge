@@ -10,6 +10,14 @@ import (
 // hardcode the model name at a call site (INV-04).
 const EmbeddingModel = "BAAI/bge-m3"
 
+// MinSimilarity is the minimum cosine similarity a passage must reach to be
+// sent to the LLM. Below it, a query returns no_results (INV-06, FR-053).
+// Calibrated for bge-m3, where unrelated passages typically score below 0.4.
+const MinSimilarity = 0.45
+
+// RetrievalTopK is the maximum number of passages included in the RAG prompt.
+const RetrievalTopK = 3
+
 // Config holds all runtime configuration loaded from environment variables.
 type Config struct {
 	DatabaseURL string

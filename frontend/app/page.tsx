@@ -66,7 +66,8 @@ export default function Home() {
 
   const handleQuery = useCallback(async () => {
     const q = question.trim();
-    if (!q) return;
+    if (!q || uploadState.status !== "success") return;
+    const { documentId } = uploadState;
 
     // Fix 4: clear input immediately after submit
     setQuestion("");
@@ -78,7 +79,7 @@ export default function Home() {
     }, 80);
 
     try {
-      const res = await queryDocument(q);
+      const res = await queryDocument(documentId, q);
       // Fix 3: push to history instead of replacing
       setHistory((prev) => [
         ...prev,
@@ -96,7 +97,7 @@ export default function Home() {
         message: err instanceof Error ? err.message : "Query failed.",
       });
     }
-  }, [question]);
+  }, [question, uploadState]);
 
   const uploadStatus: UploadStatus =
     uploadState.status === "idle" ||

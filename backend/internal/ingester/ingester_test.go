@@ -43,7 +43,7 @@ func (m *mockStore) WriteChunks(_ context.Context, _ string, chunks []store.Chun
 	return m.chunkWriteErr
 }
 
-func (m *mockStore) SimilaritySearch(_ context.Context, _ []float32, _ int) ([]store.Chunk, error) {
+func (m *mockStore) SimilaritySearch(_ context.Context, _ string, _ []float32, _ int, _ float64) ([]store.Chunk, error) {
 	return nil, nil
 }
 

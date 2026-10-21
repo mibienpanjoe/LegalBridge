@@ -46,13 +46,13 @@ At MVP scale — one document, a few hundred chunks — pgvector running inside 
 
 **Owned invariants:** INV-01, INV-02, INV-03, INV-06, INV-07
 
-**Inputs:** `string` (user question)
+**Inputs:** `documentID string`, `question string`
 **Outputs:** `QueryResult{Answer, Citations}` or error
 
 **Key behaviors:**
 1. Call `EmbeddingClient.Embed(question, config.EmbeddingModel)` → `queryVector`
-2. Call `Store.SimilaritySearch(queryVector, topK=3)` → `[]Chunk`
-3. **If `len(chunks) == 0`**: return `NoResultsError` immediately without calling Claude (INV-06)
+2. Call `Store.SimilaritySearch(documentID, queryVector, config.RetrievalTopK, config.MinSimilarity)` → `[]Chunk` (only chunks of that document with cosine similarity ≥ 0.45)
+3. **If `len(chunks) == 0`**: return `NoResultsError` immediately without calling the LLM (INV-06)
 4. Construct RAG prompt (see Prompt Template below)
 5. Call Groq API: `POST /openai/v1/chat/completions` with the constructed prompt
 6. Validate response: check that `Citations` field is non-empty (INV-02)
@@ -98,14 +98,14 @@ Do not use any knowledge beyond what is provided in the passages.
 type Store interface {
     WriteDocument(ctx, filename string) (documentID string, err error)
     WriteChunks(ctx, documentID string, chunks []Chunk) error
-    SimilaritySearch(ctx context.Context, vector []float32, topK int) ([]Chunk, error)
+    SimilaritySearch(ctx context.Context, documentID string, vector []float32, topK int, minSimilarity float64) ([]Chunk, error)
     Ping(ctx context.Context) error
 }
 ```
 
 **Structural enforcements:**
 - `WriteChunks` MUST fail if any chunk has `len(embedding) != 1024`
-- `SimilaritySearch` uses `<=>` (cosine distance) with a parameterized limit
+- `SimilaritySearch` filters by `document_id` first (exact distance over that document's chunks, not a post-filtered HNSW scan), then applies the similarity threshold and a parameterized limit
 - All queries are parameterized — no string interpolation
 
 **Must NOT:**
@@ -226,10 +226,10 @@ POST /api/query { "question": "..." }
     ↓
 APIHandler.handleQuery()
     ↓
-QueryProcessor.Query(question)
+QueryProcessor.Query(documentID, question)
     ├─► EmbeddingClient.Embed(question, EmbeddingModel) → queryVector   (~200ms)
     │       └─► failure → EmbeddingUnavailableError
-    ├─► Store.SimilaritySearch(queryVector, topK=3) → []Chunk  (~100ms)
+    ├─► Store.SimilaritySearch(documentID, queryVector, topK=3, minSimilarity=0.45) → []Chunk  (~100ms)
     │       └─► empty → NoResultsError (early exit, no LLM call) ← INV-06
     ├─► BuildRAGPrompt(question, chunks) → prompt
     ├─► Groq.Complete(prompt) → rawResponse                     (~3-4s)

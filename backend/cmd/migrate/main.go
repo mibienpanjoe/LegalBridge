@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/mibienpanjoe/legalbridge/pkg/config"
 	"github.com/mibienpanjoe/legalbridge/migrations"
+	"github.com/mibienpanjoe/legalbridge/pkg/config"
 )
 
 func main() {
@@ -26,8 +26,14 @@ func main() {
 	}
 	defer conn.Close(ctx)
 
-	if _, err := conn.Exec(ctx, migrations.Init); err != nil {
-		log.Fatalf("apply migration: %v", err)
+	sqls, err := migrations.All()
+	if err != nil {
+		log.Fatalf("load migrations: %v", err)
+	}
+	for i, sql := range sqls {
+		if _, err := conn.Exec(ctx, sql); err != nil {
+			log.Fatalf("apply migration %d: %v", i+1, err)
+		}
 	}
 
 	fmt.Println("migrations applied successfully")
