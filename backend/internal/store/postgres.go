@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -38,11 +39,17 @@ func NewPostgresStore(ctx context.Context, databaseURL string) (*PostgresStore, 
 }
 
 // WriteDocument inserts a document record and returns its generated UUID.
-func (s *PostgresStore) WriteDocument(ctx context.Context, filename string) (string, error) {
+// A zero expiresAt is stored as NULL: the document never expires.
+func (s *PostgresStore) WriteDocument(ctx context.Context, filename string, expiresAt time.Time) (string, error) {
+	var expires *time.Time
+	if !expiresAt.IsZero() {
+		expires = &expiresAt
+	}
 	var id string
 	err := s.pool.QueryRow(ctx,
-		`INSERT INTO documents (filename) VALUES ($1) RETURNING id`,
+		`INSERT INTO documents (filename, expires_at) VALUES ($1, $2) RETURNING id`,
 		filename,
+		expires,
 	).Scan(&id)
 	if err != nil {
 		return "", &DatabaseUnavailableError{Cause: err}
@@ -168,6 +175,33 @@ func (s *PostgresStore) ChunkContents(ctx context.Context, documentID string) ([
 		return nil, &DatabaseUnavailableError{Cause: err}
 	}
 	return chunks, nil
+}
+
+// DocumentExists reports whether documentID exists and has not expired. An
+// expired document that the sweeper has not deleted yet counts as gone.
+func (s *PostgresStore) DocumentExists(ctx context.Context, documentID string) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx,
+		`SELECT EXISTS (
+		     SELECT 1 FROM documents
+		     WHERE id = $1 AND (expires_at IS NULL OR expires_at > NOW())
+		 )`,
+		documentID,
+	).Scan(&exists)
+	if err != nil {
+		return false, &DatabaseUnavailableError{Cause: err}
+	}
+	return exists, nil
+}
+
+// DeleteExpiredDocuments deletes documents whose expiry has passed; their
+// chunks are removed by ON DELETE CASCADE.
+func (s *PostgresStore) DeleteExpiredDocuments(ctx context.Context) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM documents WHERE expires_at <= NOW()`)
+	if err != nil {
+		return 0, &DatabaseUnavailableError{Cause: err}
+	}
+	return tag.RowsAffected(), nil
 }
 
 // Ping verifies that the database connection is alive.

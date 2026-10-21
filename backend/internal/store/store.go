@@ -25,7 +25,15 @@ type Chunk struct {
 // It holds no business logic and calls no external APIs.
 type Store interface {
 	// WriteDocument inserts a document record and returns its generated UUID.
-	WriteDocument(ctx context.Context, filename string) (string, error)
+	// A zero expiresAt means the document never expires.
+	WriteDocument(ctx context.Context, filename string, expiresAt time.Time) (string, error)
+
+	// DocumentExists reports whether the document exists and has not expired.
+	DocumentExists(ctx context.Context, documentID string) (bool, error)
+
+	// DeleteExpiredDocuments deletes every document whose expiry has passed,
+	// together with its chunks, and returns how many were deleted.
+	DeleteExpiredDocuments(ctx context.Context) (int64, error)
 
 	// WriteChunks persists all chunks for a document in a single transaction.
 	// It returns an error (without writing anything) if any chunk has an

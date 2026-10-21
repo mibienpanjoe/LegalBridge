@@ -59,7 +59,7 @@ func main() {
 	}
 
 	ec := ingester.NewEmbeddingClient(cfg)
-	ing := ingester.NewIngester(pg, ec)
+	ing := ingester.NewIngester(pg, ec, 0) // the demo document never expires
 
 	filename := filepath.Base(pdfPath)
 	result, err := ing.Ingest(ctx, pdfBytes, filename)
@@ -71,7 +71,8 @@ func main() {
 		filename, result.ChunkCount, result.DocumentID)
 }
 
-// hasDocuments returns true when the documents table contains at least one row.
+// hasDocuments returns true when a non-expiring (seeded) document exists.
+// User uploads expire and do not count.
 func hasDocuments(ctx context.Context, databaseURL string) (bool, error) {
 	conn, err := pgx.Connect(ctx, databaseURL)
 	if err != nil {
@@ -80,7 +81,7 @@ func hasDocuments(ctx context.Context, databaseURL string) (bool, error) {
 	defer conn.Close(ctx)
 
 	var count int
-	err = conn.QueryRow(ctx, "SELECT COUNT(*) FROM documents").Scan(&count)
+	err = conn.QueryRow(ctx, "SELECT COUNT(*) FROM documents WHERE expires_at IS NULL").Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("query: %w", err)
 	}

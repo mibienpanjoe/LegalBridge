@@ -27,6 +27,8 @@ export function citationLocation(c: Citation): string {
 export interface IngestResponse {
   document_id: string;
   chunk_count: number;
+  /** ISO timestamp after which the upload is deleted; absent if it never expires. */
+  expires_at?: string;
 }
 
 export interface QueryResponse {
@@ -42,12 +44,25 @@ interface ApiErrorBody {
   };
 }
 
-async function parseError(res: Response): Promise<Error> {
+/** An error returned by the API, carrying its machine-readable code. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly code?: string
+  ) {
+    super(message);
+  }
+}
+
+async function parseError(res: Response): Promise<ApiError> {
   try {
     const body: ApiErrorBody = await res.json();
-    return new Error(body.error?.message ?? `Request failed (${res.status})`);
+    return new ApiError(
+      body.error?.message ?? `Request failed (${res.status})`,
+      body.error?.code
+    );
   } catch {
-    return new Error(`Request failed (${res.status})`);
+    return new ApiError(`Request failed (${res.status})`);
   }
 }
 

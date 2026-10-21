@@ -17,6 +17,14 @@ func (e *NoResultsError) Error() string {
 	return "no relevant passages found for this question"
 }
 
+// DocumentNotFoundError is returned when the queried document does not exist
+// or has expired.
+type DocumentNotFoundError struct{}
+
+func (e *DocumentNotFoundError) Error() string {
+	return "document not found or expired"
+}
+
 // LLMUnavailableError is returned when the LLM API times out or returns
 // a non-2xx response.
 type LLMUnavailableError struct {

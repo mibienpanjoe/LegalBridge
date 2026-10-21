@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mibienpanjoe/legalbridge/internal/ingester"
@@ -38,7 +39,11 @@ func (f *fakeQuerySvc) Query(_ context.Context, _, _ string) (*query.QueryResult
 
 type fakeStore struct{ pingErr error }
 
-func (f *fakeStore) WriteDocument(_ context.Context, _ string) (string, error)      { return "", nil }
+func (f *fakeStore) WriteDocument(_ context.Context, _ string, _ time.Time) (string, error) {
+	return "", nil
+}
+func (f *fakeStore) DocumentExists(_ context.Context, _ string) (bool, error)       { return true, nil }
+func (f *fakeStore) DeleteExpiredDocuments(_ context.Context) (int64, error)        { return 0, nil }
 func (f *fakeStore) WriteChunks(_ context.Context, _ string, _ []store.Chunk) error { return nil }
 func (f *fakeStore) SimilaritySearch(_ context.Context, _ string, _ []float32, _ int, _ float64) ([]store.Chunk, error) {
 	return nil, nil
@@ -219,5 +224,25 @@ func TestHandleQuery_RequiresDocumentID(t *testing.T) {
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("body %s: expected 400, got %d", body, w.Code)
 		}
+	}
+}
+
+// TestHandleQuery_DocumentNotFound verifies that an expired or unknown
+// document is reported as 404 DOCUMENT_NOT_FOUND.
+func TestHandleQuery_DocumentNotFound(t *testing.T) {
+	h := NewAPIHandler(&fakeIngestor{}, &fakeQuerySvc{err: &query.DocumentNotFoundError{}}, &fakeStore{})
+	r := newTestRouter(h)
+
+	body := `{"document_id":"3f4a7b2c-1e6d-4a89-b3c2-9d1e5f7a8b0c","question":"Encore là ?"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/query", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "DOCUMENT_NOT_FOUND") {
+		t.Errorf("expected DOCUMENT_NOT_FOUND code, got %s", w.Body.String())
 	}
 }

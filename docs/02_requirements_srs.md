@@ -88,7 +88,8 @@ Version: v1.0, 2026-03-31
 - All HTTP transport MUST use HTTPS (enforced by deployment platform)
 
 ### Data Privacy
-- For the MVP, no user-submitted questions, answers, or uploaded documents are persisted beyond the session
+- Questions and answers are never persisted
+- Uploaded documents and their chunks are deleted 24 hours after ingestion (`config.UploadTTL`; an hourly sweep plus a startup sweep). An expired document is treated as gone even before the sweep runs. Only the seeded demo document is kept indefinitely
 - No user accounts, authentication tokens, or PII are collected
 
 ### Scalability

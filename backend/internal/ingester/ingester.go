@@ -3,6 +3,7 @@ package ingester
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/mibienpanjoe/legalbridge/internal/store"
 	"github.com/mibienpanjoe/legalbridge/pkg/config"
@@ -12,17 +13,20 @@ import (
 type IngestResult struct {
 	DocumentID string
 	ChunkCount int
+	ExpiresAt  time.Time // zero when the document never expires
 }
 
 // Ingester orchestrates the full PDF → embedding → store pipeline.
 type Ingester struct {
 	store           store.Store
 	embeddingClient EmbeddingClient
+	ttl             time.Duration
 }
 
 // NewIngester constructs an Ingester with the given Store and EmbeddingClient.
-func NewIngester(s store.Store, ec EmbeddingClient) *Ingester {
-	return &Ingester{store: s, embeddingClient: ec}
+// Documents it ingests expire after ttl; a zero ttl means they never expire.
+func NewIngester(s store.Store, ec EmbeddingClient, ttl time.Duration) *Ingester {
+	return &Ingester{store: s, embeddingClient: ec, ttl: ttl}
 }
 
 // Ingest extracts text from fileBytes, chunks it, generates embeddings, and
@@ -62,7 +66,12 @@ func (ing *Ingester) ingestPages(ctx context.Context, pages []Page, filename str
 		}
 	}
 
-	documentID, err := ing.store.WriteDocument(ctx, filename)
+	var expiresAt time.Time
+	if ing.ttl > 0 {
+		expiresAt = time.Now().Add(ing.ttl).UTC().Truncate(time.Second)
+	}
+
+	documentID, err := ing.store.WriteDocument(ctx, filename, expiresAt)
 	if err != nil {
 		return nil, fmt.Errorf("write document: %w", err)
 	}
@@ -74,5 +83,6 @@ func (ing *Ingester) ingestPages(ctx context.Context, pages []Page, filename str
 	return &IngestResult{
 		DocumentID: documentID,
 		ChunkCount: len(storeChunks),
+		ExpiresAt:  expiresAt,
 	}, nil
 }

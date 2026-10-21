@@ -5,14 +5,25 @@ import Disclaimer from "@/components/Disclaimer";
 import DocumentUpload, { type UploadStatus } from "@/components/DocumentUpload";
 import QueryInput from "@/components/QueryInput";
 import AnswerThread from "@/components/AnswerThread";
-import { ingestDocument, queryDocument, type Citation } from "@/lib/api";
+import {
+  ApiError,
+  ingestDocument,
+  queryDocument,
+  type Citation,
+} from "@/lib/api";
 
 // ─── State types ──────────────────────────────────────────────────────────────
 
 type UploadState =
   | { status: "idle" }
   | { status: "uploading" }
-  | { status: "success"; documentId: string; chunkCount: number; filename: string }
+  | {
+      status: "success";
+      documentId: string;
+      chunkCount: number;
+      filename: string;
+      expiresAt?: string;
+    }
   | { status: "error"; message: string };
 
 type QueryState =
@@ -55,6 +66,7 @@ export default function Home() {
         documentId: res.document_id,
         chunkCount: res.chunk_count,
         filename: file.name,
+        expiresAt: res.expires_at,
       });
     } catch (err) {
       setUploadState({
@@ -92,6 +104,13 @@ export default function Home() {
       ]);
       setQueryState({ status: "idle" });
     } catch (err) {
+      // The upload expired server-side: go back to the upload step.
+      if (err instanceof ApiError && err.code === "DOCUMENT_NOT_FOUND") {
+        setUploadState({ status: "error", message: err.message });
+        setQueryState({ status: "idle" });
+        setHistory([]);
+        return;
+      }
       setQueryState({
         status: "error",
         message: err instanceof Error ? err.message : "Query failed.",
@@ -146,6 +165,9 @@ export default function Home() {
             }
             filename={
               uploadState.status === "success" ? uploadState.filename : undefined
+            }
+            expiresAt={
+              uploadState.status === "success" ? uploadState.expiresAt : undefined
             }
             error={
               uploadState.status === "error" ? uploadState.message : undefined

@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"os"
+	"time"
 )
 
 // EmbeddingModel is the single source of truth for the embedding model name.
@@ -17,6 +18,13 @@ const MinSimilarity = 0.45
 
 // RetrievalTopK is the maximum number of passages included in the RAG prompt.
 const RetrievalTopK = 3
+
+// UploadTTL is how long an uploaded document and its chunks are kept before
+// the sweeper deletes them. Seeded documents never expire.
+const UploadTTL = 24 * time.Hour
+
+// ExpirySweepInterval is how often expired documents are deleted.
+const ExpirySweepInterval = time.Hour
 
 // RetrievalCandidates is how many passages above MinSimilarity are reranked
 // by hybrid (vector + BM25) fusion before keeping the best RetrievalTopK.
