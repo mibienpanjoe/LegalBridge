@@ -9,26 +9,20 @@ interface Props {
   onSubmit: () => void;
   isLoading: boolean;
   error?: string;
-  showSuggestions?: boolean;
 }
 
-export default function QueryInput({
+export default function Composer({
   question,
   onQuestionChange,
   onSubmit,
   isLoading,
   error,
-  showSuggestions,
 }: Props) {
   const { t } = useLocale();
   const canSubmit = !isLoading && question.trim().length > 0;
 
   return (
-    <section aria-labelledby="query-heading">
-      <h2 id="query-heading" className="mb-2 text-sm font-medium text-muted-foreground">
-        {t.askHeading}
-      </h2>
-
+    <div>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -74,22 +68,6 @@ export default function QueryInput({
           {error}
         </p>
       )}
-
-      {showSuggestions && (
-        <ul className="mt-3 flex flex-wrap gap-2" aria-label={t.askHeading}>
-          {t.suggestions.map((q) => (
-            <li key={q}>
-              <button
-                type="button"
-                onClick={() => onQuestionChange(q)}
-                className="min-h-9 rounded-full border bg-card px-3 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:border-highlight hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              >
-                {q}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+    </div>
   );
 }

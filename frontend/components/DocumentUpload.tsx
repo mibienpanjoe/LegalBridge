@@ -1,30 +1,20 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { FileText, Loader2, Upload } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/lib/i18n";
 
-export type UploadStatus = "idle" | "uploading" | "success" | "error";
+export type UploadStatus = "idle" | "uploading" | "error";
 
 interface Props {
   status: UploadStatus;
-  chunkCount?: number;
-  filename?: string;
-  expiresAt?: string;
   error?: string;
   onUpload: (file: File) => void;
 }
 
-export default function DocumentUpload({
-  status,
-  chunkCount,
-  filename,
-  expiresAt,
-  error,
-  onUpload,
-}: Props) {
-  const { t, locale } = useLocale();
+export default function DocumentUpload({ status, error, onUpload }: Props) {
+  const { t } = useLocale();
   const [isDragOver, setIsDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -59,37 +49,6 @@ export default function DocumentUpload({
       disabled={status === "uploading"}
     />
   );
-
-  // Success state — the loaded document, with a way to replace it.
-  if (status === "success") {
-    const when =
-      expiresAt &&
-      new Date(expiresAt).toLocaleString(locale, {
-        weekday: "long",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    return (
-      <div className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3">
-        <FileText className="size-5 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{filename}</p>
-          <p className="text-xs text-muted-foreground">
-            {chunkCount !== undefined && t.passages(chunkCount)}
-            {when && <>, {t.deletedAt(when)}</>}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          className="h-11 shrink-0 rounded-md px-3 text-sm font-medium text-primary transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          {t.uploadReplace}
-        </button>
-        {input(t.uploadReplaceLabel)}
-      </div>
-    );
-  }
 
   return (
     <div>

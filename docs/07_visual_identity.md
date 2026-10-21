@@ -103,25 +103,28 @@ Motion only answers user actions: the answer fades in (300ms) when it arrives, b
 
 ## Page Layout
 
-Single column, max 768px, left-aligned:
+**Before a document is loaded:** a landing page. The headline and upload sit on the left. On the right is a worked example on the real text of the Burkina Faso Labour Code (Article 1, highlighted), so the product's promise is shown rather than described.
+
+**Workspace:** two panes, document and assistant. There is no sidebar, since there's only one document at a time.
 
 ```
-┌ LegalBridge                                 EN  ☾ ┐
-│ Vos documents juridiques, expliqués.              │
-├───────────────────────────────────────────────────┤
-│ Votre document                                    │
-│ [ code-travail.pdf · 98 passages …   Remplacer ]  │
-│                                                   │
-│ Question                                          │
-│ Answer in serif with highlighter chips  1   2     │
-│ Sources                                           │
-│ [ 1  Article 42–44, p. 14 — passage… ]            │
-│                                                   │
-│ Interroger ce document                            │
-│ [ Que voulez-vous savoir…               (↑) ]     │
-│ ⚖ LegalBridge fournit une information juridique…  │
-└───────────────────────────────────────────────────┘
+┌ LegalBridge │ code-travail.pdf, 98 passages…   Nouveau document  EN ☾ ┐
+├──────────────────────────────────────┬───────────────────────────────┤
+│ PDF (react-pdf)                      │ Question                      │
+│  page 14                             │ Answer in serif   1   2       │
+│  ▓▓ Article 43 highlighted ▓▓        │ Sources                       │
+│                                      │ [ 1 Article 43–44, p. 14 ]    │
+│                                      │   Voir dans le document       │
+│                                      ├───────────────────────────────┤
+│                                      │ [ Que voulez-vous savoir… ↑ ] │
+│                                      │ ⚖ disclaimer                  │
+└──────────────────────────────────────┴───────────────────────────────┘
 ```
+
+- When an answer arrives, the document jumps to its first source and highlights it. A citation chip or "Voir dans le document" jumps to that source.
+- While a question runs, the assistant shows the streamed stages as steps (search → passages found, with article badges → writing).
+- Below 1024px the assistant takes the full width; the document opens as a full-screen sheet ("Retour aux réponses", Escape closes it).
+- The PDF page stays white in dark mode; the highlight on it always uses the light-theme amber.
 
 ---
 

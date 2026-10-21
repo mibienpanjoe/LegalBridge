@@ -270,7 +270,9 @@ HTTP 200 { "answer": "...", "citations": [...], "query": "..." }
 | Railway or Render | Deployment | Go backend + managed PostgreSQL |
 | Next.js 16 + React 19 | UI | SSR-capable SPA, Vercel-native deployment |
 | TypeScript | UI | Type safety for API contracts |
-| shadcn/ui | UI | Accessible, unstyled component primitives |
+| shadcn/ui (Base UI, `base-nova`) | UI | Accessible, unstyled component primitives |
+| Vercel AI Elements (subset) | UI | `conversation` (stick-to-bottom thread), `chain-of-thought` (streamed pipeline stages), `suggestion`, `sources`, `loader`. Installed as source via the shadcn registry. `message`, `prompt-input` and `inline-citation` are deliberately not used: they need the `ai` SDK, markdown rendering (`streamdown`) or Radix `asChild` APIs that conflict with Base UI and with verbatim `[N]` citation parsing |
+| react-pdf 11 (pdf.js) | UI | In-browser PDF viewer. Pages render lazily near the viewport, each in its own Suspense boundary, and the cited passage is highlighted on the text layer by matching the stored chunk text. The PDF stays in the browser; the viewer uses the uploaded `File`, not a server download |
 | Tailwind CSS | UI | Utility-first styling |
 | Vercel | Deployment | Zero-config frontend hosting with HTTPS |
 
